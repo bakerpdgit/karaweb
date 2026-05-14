@@ -33,8 +33,8 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          GITHUB_ACTIONS: true   # triggers /karaport/ base in vite.config.js
+        # CI=true is set automatically by GitHub Actions; vite.config.js uses it
+        # to set base: '/karaport/' so asset paths resolve correctly on Pages
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
