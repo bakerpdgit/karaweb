@@ -253,3 +253,61 @@ function selfLoopPath(state) {
 }
 
 export { STATE_R };
+
+// ── Save / Load ───────────────────────────────────────────────────────────────
+
+export function buildSaveData(world, fsm, name) {
+  return {
+    karaWebVersion: 1,
+    name: name || 'KaraWebWorld',
+    savedAt: new Date().toISOString(),
+    world: {
+      width: world.width,
+      height: world.height,
+      cells: world.cells,
+      kara: world.kara,
+    },
+    fsm: {
+      states: fsm.states,
+      transitions: fsm.transitions,
+      startStateId: fsm.startStateId,
+    },
+  };
+}
+
+export function downloadJSON(obj, filename) {
+  const json = JSON.stringify(obj, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function parseSaveData(raw) {
+  if (!raw?.karaWebVersion || !raw.world || !raw.fsm) {
+    throw new Error('Unrecognised file format — is this a KaraWeb save file?');
+  }
+  const world = {
+    width:  raw.world.width,
+    height: raw.world.height,
+    cells:  raw.world.cells,
+    kara:   raw.world.kara,
+  };
+  // Re-derive _nextNum from the highest q{n} label present
+  const maxN = raw.fsm.states.reduce((m, s) => {
+    const match = s.label?.match(/^q(\d+)$/);
+    return match ? Math.max(m, parseInt(match[1])) : m;
+  }, 0);
+  const fsm = {
+    states:       raw.fsm.states,
+    transitions:  raw.fsm.transitions,
+    startStateId: raw.fsm.startStateId,
+    _nextNum:     maxN + 1,
+  };
+  return { world, fsm };
+}

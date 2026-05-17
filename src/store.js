@@ -253,6 +253,14 @@ export function reducer(state, action) {
     case 'SIM_SET_SPEED':
       return { ...state, sim: { ...state.sim, speed: action.speed } };
 
+    case 'LOAD_WORLD_FSM': {
+      return withSensors({
+        ...initialState,
+        fsm: action.fsm,
+        worldTool: state.worldTool,
+      }, action.world);
+    }
+
     default:
       return state;
   }
