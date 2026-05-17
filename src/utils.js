@@ -45,6 +45,15 @@ function cloneCells(cells) {
   return cells.map(row => row.map(c => ({ ...c })));
 }
 
+export function cloneWorld(world) {
+  return {
+    width: world.width,
+    height: world.height,
+    cells: cloneCells(world.cells),
+    kara: { ...world.kara },
+  };
+}
+
 // ── Sensor computation ───────────────────────────────────────────────────────
 
 export function computeSensors(world) {
@@ -141,6 +150,42 @@ export function applyAction(world, action) {
 
   return { ...world, cells, kara };
 }
+
+// ── Python bridge: map Python method names to FSM action names ───────────────
+
+// Python uses snake_case method names; the FSM internally uses camelCase
+// action identifiers. Both map onto the same applyAction implementation.
+const PY_ACTION_MAP = {
+  move: 'move',
+  turn_left: 'turnLeft',
+  turn_right: 'turnRight',
+  put_leaf: 'putLeaf',
+  remove_leaf: 'removeLeaf',
+};
+
+export function applyKaraPyAction(world, pyAction) {
+  const internal = PY_ACTION_MAP[pyAction];
+  if (!internal) throw new Error(`Unknown kara action: ${pyAction}`);
+  return applyAction(world, internal);
+}
+
+const PY_SENSOR_MAP = {
+  tree_front: 'treeFront',
+  tree_left: 'treeLeft',
+  tree_right: 'treeRight',
+  mushroom_front: 'mushroomFront',
+  on_leaf: 'onLeaf',
+};
+
+export function readKaraPySensor(world, pySensor) {
+  const internal = PY_SENSOR_MAP[pySensor];
+  if (!internal) throw new Error(`Unknown kara sensor: ${pySensor}`);
+  const sensors = computeSensors(world);
+  return !!sensors[internal];
+}
+
+export const PY_ACTION_NAMES = Object.keys(PY_ACTION_MAP);
+export const PY_SENSOR_NAMES = Object.keys(PY_SENSOR_MAP);
 
 // ── FSM execution step ───────────────────────────────────────────────────────
 
@@ -256,9 +301,14 @@ export { STATE_R };
 
 // ── Save / Load ───────────────────────────────────────────────────────────────
 
-export function buildSaveData(world, fsm, name) {
-  return {
-    karaWebVersion: 1,
+export function buildSaveData(opts) {
+  const {
+    world, fsm, appMode, blocklyState, pythonCode, pythonFontSize, name,
+    challenges, challengeWork,
+  } = opts;
+  const base = {
+    karaWebVersion: 4,
+    appMode: (appMode === 'blocks' || appMode === 'python') ? appMode : 'fsm',
     name: name || 'KaraWebWorld',
     savedAt: new Date().toISOString(),
     world: {
@@ -267,12 +317,23 @@ export function buildSaveData(world, fsm, name) {
       cells: world.cells,
       kara: world.kara,
     },
-    fsm: {
+  };
+  if (appMode === 'blocks') {
+    base.blocks = { blocklyState: blocklyState ?? null };
+  } else if (appMode === 'python') {
+    base.python = { code: pythonCode ?? '', fontSize: pythonFontSize ?? 14 };
+  } else {
+    base.fsm = {
       states: fsm.states,
       transitions: fsm.transitions,
       startStateId: fsm.startStateId,
-    },
-  };
+    };
+  }
+  if (challenges?.length || Object.keys(challengeWork ?? {}).length) {
+    base.challenges    = challenges ?? [];
+    base.challengeWork = challengeWork ?? {};
+  }
+  return base;
 }
 
 export function downloadJSON(obj, filename) {
@@ -289,7 +350,7 @@ export function downloadJSON(obj, filename) {
 }
 
 export function parseSaveData(raw) {
-  if (!raw?.karaWebVersion || !raw.world || !raw.fsm) {
+  if (!raw?.karaWebVersion || !raw.world) {
     throw new Error('Unrecognised file format — is this a KaraWeb save file?');
   }
   const world = {
@@ -298,16 +359,42 @@ export function parseSaveData(raw) {
     cells:  raw.world.cells,
     kara:   raw.world.kara,
   };
-  // Re-derive _nextNum from the highest q{n} label present
-  const maxN = raw.fsm.states.reduce((m, s) => {
-    const match = s.label?.match(/^q(\d+)$/);
-    return match ? Math.max(m, parseInt(match[1])) : m;
-  }, 0);
-  const fsm = {
-    states:       raw.fsm.states,
-    transitions:  raw.fsm.transitions,
-    startStateId: raw.fsm.startStateId,
-    _nextNum:     maxN + 1,
+  let fsm;
+  if (raw.fsm) {
+    const maxN = raw.fsm.states.reduce((m, s) => {
+      const match = s.label?.match(/^q(\d+)$/);
+      return match ? Math.max(m, parseInt(match[1])) : m;
+    }, 0);
+    fsm = {
+      states:       raw.fsm.states,
+      transitions:  raw.fsm.transitions,
+      startStateId: raw.fsm.startStateId,
+      _nextNum:     maxN + 1,
+    };
+  } else {
+    fsm = createFSM();
+  }
+  // Versions: v1 had no appMode (always fsm). v2 used appMode='python' for blocks.
+  // v3 uses 'blocks' and 'python' distinctly. Migrate v2 → v3.
+  let appMode = raw.appMode;
+  if (raw.karaWebVersion <= 2 && appMode === 'python') appMode = 'blocks';
+  if (appMode !== 'blocks' && appMode !== 'python') appMode = 'fsm';
+
+  // Blockly state can be under raw.blocks.blocklyState (v3) or
+  // raw.python.blocklyState (v2). Both supported.
+  const blocklyState =
+    raw.blocks?.blocklyState ?? raw.python?.blocklyState ?? null;
+
+  // Python (Monaco) state is only in v3+.
+  const pythonCode     = (raw.karaWebVersion >= 3) ? (raw.python?.code ?? null) : null;
+  const pythonFontSize = (raw.karaWebVersion >= 3) ? (raw.python?.fontSize ?? null) : null;
+
+  // Challenges are v4+.
+  const challenges     = (raw.karaWebVersion >= 4) ? (raw.challenges ?? []) : [];
+  const challengeWork  = (raw.karaWebVersion >= 4) ? (raw.challengeWork ?? {}) : {};
+
+  return {
+    world, fsm, appMode, blocklyState, pythonCode, pythonFontSize,
+    challenges, challengeWork,
   };
-  return { world, fsm };
 }

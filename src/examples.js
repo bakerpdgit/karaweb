@@ -282,33 +282,40 @@ The world geometry encodes the stopping condition spatially. The FSM has essenti
 
 // ── Exports ───────────────────────────────────────────────────────────────────
 
+import {
+  EX1_BLOCKS, EX1_PYTHON,
+  EX2_BLOCKS, EX2_PYTHON,
+  EX3_BLOCKS, EX3_PYTHON,
+  EX4_BLOCKS, EX4_PYTHON,
+} from './exampleSolutions.js';
+
 export const EXAMPLES = [
   {
     id: 'ex1',
     name: '1. Left-Turn Pathfinder  ⭐',
-    world: ex1World,
-    fsm: ex1Fsm,
+    world: ex1World, fsm: ex1Fsm,
+    blocks: EX1_BLOCKS, python: EX1_PYTHON,
     notes: ex1Notes,
   },
   {
     id: 'ex2',
     name: '2. Row Harvester  ⭐⭐',
-    world: ex2World,
-    fsm: ex2Fsm,
+    world: ex2World, fsm: ex2Fsm,
+    blocks: EX2_BLOCKS, python: EX2_PYTHON,
     notes: ex2Notes,
   },
   {
     id: 'ex3',
     name: '3. Forest Circler  ⭐⭐⭐',
-    world: ex3World,
-    fsm: ex3Fsm,
+    world: ex3World, fsm: ex3Fsm,
+    blocks: EX3_BLOCKS, python: EX3_PYTHON,
     notes: ex3Notes,
   },
   {
     id: 'ex4',
     name: '4. Mushroom Pusher  ⭐⭐⭐⭐',
-    world: ex4World,
-    fsm: ex4Fsm,
+    world: ex4World, fsm: ex4Fsm,
+    blocks: EX4_BLOCKS, python: EX4_PYTHON,
     notes: ex4Notes,
   },
 ];
