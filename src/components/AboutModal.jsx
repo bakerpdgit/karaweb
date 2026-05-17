@@ -41,6 +41,22 @@ export default function AboutModal({ onClose }) {
         <hr className="about-divider" />
 
         <section className="about-section">
+          <h3>Author</h3>
+          <p>
+            Built by <strong>Paul Baker</strong>.{' '}
+            <a href="https://www.linkedin.com/in/paul-baker-6a66046a/" target="_blank" rel="noreferrer">
+              LinkedIn
+            </a>
+            {' · '}
+            <a href="https://github.com/bakerpdgit/karaweb" target="_blank" rel="noreferrer">
+              GitHub repository
+            </a>
+          </p>
+        </section>
+
+        <hr className="about-divider" />
+
+        <section className="about-section">
           <h3>Licence</h3>
           <div className="licence-badge">
             <a
