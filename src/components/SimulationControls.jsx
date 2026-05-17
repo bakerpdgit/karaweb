@@ -68,11 +68,6 @@ export default function SimulationControls({ sim, dispatch }) {
         </div>
       )}
 
-      {error && (
-        <div className="sim-error" title={error}>
-          ⚠ {error}
-        </div>
-      )}
     </div>
   );
 }

@@ -8,10 +8,15 @@ const SENSOR_DEFS = [
   { key: 'onLeaf',        label: 'On Leaf',        abbr: 'OL', icon: '🍃' },
 ];
 
-export default function SensorDisplay({ sensors }) {
+export default function SensorDisplay({ sensors, onClose }) {
   return (
     <div className="sensor-display">
-      <div className="panel-title">Sensors</div>
+      <div className="panel-title">
+        Sensors
+        {onClose && (
+          <button className="panel-close-btn" onClick={onClose} title="Close sensors panel">✕</button>
+        )}
+      </div>
       <div className="sensor-grid">
         {SENSOR_DEFS.map(({ key, label, abbr, icon }) => {
           const val = sensors?.[key];
