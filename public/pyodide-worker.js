@@ -39,7 +39,7 @@ self.onmessage = (e) => {
 
   if (data.cmd === 'debug' || data.cmd === 'run') {
     if (!ctx.ready) { workerPrint('Pyodide not yet initialised\n'); return; }
-    runUserCode(data.code, data.cmd === 'debug').catch((err) => {
+    runUserCode(data.code, data.cmd === 'debug', data.runToken || '').catch((err) => {
       workerPrint(String(err?.message ?? err) + '\n');
       self.postMessage({ cmd: 'debug-finished', reason: 'error' });
     });
@@ -47,7 +47,12 @@ self.onmessage = (e) => {
   }
 };
 
-async function runUserCode(code, stepped) {
+async function runUserCode(code, stepped, runToken) {
+  // Publish the runToken into the Python runtime as a module-level global
+  // so kara_init.py's `synchronise` can append it to every sync-XHR URL.
+  // The SW uses it to reject orphaned fetches from previous runs before
+  // they deadlock the next run's promise channel.
+  try { ctx.pyodide.globals.set('CURRENT_RUN_TOKEN', String(runToken || '')); } catch {}
   let reason = 'ok';
   let errorLine = null;
   try {

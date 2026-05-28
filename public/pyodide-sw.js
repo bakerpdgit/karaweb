@@ -10,7 +10,7 @@
 // Version is bumped whenever this file's behaviour changes; any byte change
 // triggers the browser's update flow (which we further reinforce in the
 // main-thread registration helper).
-const SW_VERSION = '2026-05-17-6';
+const SW_VERSION = '2026-05-17-7';
 
 addEventListener('install',  () => self.skipWaiting());
 addEventListener('activate', () => self.clients.claim());
@@ -22,17 +22,37 @@ let stepLookahead = null;        // ps-step-continue data that arrived before a 
 let inputPromiseResolve = null;
 let inputLookahead = null;
 
+// activeRunToken: the token the main thread declared (via 'ps-set-active-run')
+// for the currently-live python run. Every sync-XHR from the worker carries
+// its own runToken in the query string. A mismatch means the request belongs
+// to a previous run whose worker has been terminated (or whose Reset was
+// clicked) — we respond immediately with {cancelled:true} so the dead
+// worker's last fetch can't deadlock the next run's promise channel.
+let activeRunToken = null;
+
+function cancelledResponse() {
+  return new Response(JSON.stringify({ cancelled: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 addEventListener('message', (event) => {
   const data = event.data;
   if (!data || !data.cmd) return;
 
+  if (data.cmd === 'ps-set-active-run') {
+    activeRunToken = data.runToken || null;
+    return;
+  }
   if (data.cmd === 'ps-reset') {
+    activeRunToken = null;
     karaLookahead = null;
     stepLookahead = null;
     inputLookahead = null;
-    if (karaPromiseResolve)  { karaPromiseResolve(new Response(null, { status: 304 }));  karaPromiseResolve = null; }
-    if (stepPromiseResolve)  { stepPromiseResolve(new Response('{}', { status: 200 }));  stepPromiseResolve = null; }
-    if (inputPromiseResolve) { inputPromiseResolve(new Response('{}', { status: 200 })); inputPromiseResolve = null; }
+    if (karaPromiseResolve)  { karaPromiseResolve(cancelledResponse());  karaPromiseResolve = null; }
+    if (stepPromiseResolve)  { stepPromiseResolve(cancelledResponse());  stepPromiseResolve = null; }
+    if (inputPromiseResolve) { inputPromiseResolve(cancelledResponse()); inputPromiseResolve = null; }
   } else if (data.cmd === 'ps-kara-resp') {
     // Race-safe: if no fetch has parked a promise yet, stash the FULL
     // response data so the next fetch returns it verbatim. The previous
@@ -72,10 +92,21 @@ function bumpStale(resolveFn) {
   try { resolveFn(new Response(null, { status: 304 })); } catch {}
 }
 
+// Returns true when the fetch URL's runToken matches the currently-active
+// run, or when no activeRunToken is set (e.g. a one-shot kara_init bootstrap
+// that doesn't carry a token). Returns false for a stale token — the caller
+// should respond with cancelledResponse() immediately.
+function tokenMatches(url) {
+  const token = url.searchParams.get('runToken') || '';
+  if (!activeRunToken) return true;   // permissive when no run is active
+  return token === activeRunToken;
+}
+
 addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
 
   if (u.pathname === '/@kara@/req.js') {
+    if (!tokenMatches(u)) { e.respondWith(cancelledResponse()); return; }
     if (karaLookahead !== null) {
       const local = karaLookahead;
       karaLookahead = null;
@@ -90,6 +121,7 @@ addEventListener('fetch', (e) => {
   }
 
   if (u.pathname === '/@step@/break.js') {
+    if (!tokenMatches(u)) { e.respondWith(cancelledResponse()); return; }
     if (stepLookahead !== null) {
       const local = stepLookahead;
       stepLookahead = null;
@@ -104,6 +136,7 @@ addEventListener('fetch', (e) => {
   }
 
   if (u.pathname === '/@input@/req.js') {
+    if (!tokenMatches(u)) { e.respondWith(cancelledResponse()); return; }
     if (inputLookahead !== null) {
       const local = inputLookahead;
       inputLookahead = null;

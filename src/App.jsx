@@ -9,6 +9,7 @@ import FSMEditor from './components/FSMEditor.jsx';
 import TransitionModal from './components/TransitionModal.jsx';
 import SimulationControls from './components/SimulationControls.jsx';
 import SensorDisplay from './components/SensorDisplay.jsx';
+import VariablesDisplay from './components/VariablesDisplay.jsx';
 import ExecutionLog from './components/ExecutionLog.jsx';
 import AboutModal from './components/AboutModal.jsx';
 import SaveDialog from './components/SaveDialog.jsx';
@@ -32,6 +33,8 @@ import TeacherKeyCheckModal from './components/cloudsave/TeacherKeyCheckModal.js
 import KeydetailsPasswordModal from './components/cloudsave/KeydetailsPasswordModal.jsx';
 import WelcomeSlideshow from './components/WelcomeSlideshow.jsx';
 import MainWelcomeSlideshow from './components/MainWelcomeSlideshow.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
+import { checkForUpdate } from './utils/updateCheck.js';
 import { unlockKeyDetailsFile } from './utils/keyDetailsFile.js';
 import { deriveSubmissionVerifier } from './utils/passwordVerifier.js';
 import ShareLinkModal from './components/ShareLinkModal.jsx';
@@ -89,6 +92,7 @@ export default function App() {
   // teacher enters the Challenge Editor.
   const [showWelcome, setShowWelcome] = useState(false);
   const [showMainWelcome, setShowMainWelcome] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const fileInputRef = useRef(null);
 
   const [sensorsOpen, setSensorsOpen]   = useState(true);
@@ -401,6 +405,32 @@ export default function App() {
   // teacher or student). Same don't-show-again localStorage pattern.
   useEffect(() => {
     if (!getMainWelcomeShown()) setShowMainWelcome(true);
+  }, []);
+
+  // ── New-version-available banner ─────────────────────────────────────
+  // /version.json (written by the Vite build hook) holds the deployed
+  // build timestamp; the JS bundle has its own copy inlined as
+  // __BUILD_TIME__. If they differ, a newer build is live and we ask
+  // the user to reload. Check on mount + on every tab-focus/pageshow so
+  // returning users notice updates promptly without any background poll.
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      checkForUpdate().then(stale => {
+        if (!cancelled && stale) setUpdateAvailable(true);
+      });
+    };
+    run();
+    const onVis = () => { if (document.visibilityState === 'visible') run(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pageshow', run);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pageshow', run);
+    };
   }, []);
 
   // ── Password-protected keydetails: idle-relock + on-demand unlock ─────
@@ -757,6 +787,9 @@ export default function App() {
 
   return (
     <div className="app">
+      {updateAvailable && (
+        <UpdateBanner onReload={() => window.location.reload()} />
+      )}
       <header className="app-header">
         <div className="app-title">
           <span className="kara-logo">🐞</span>
@@ -824,16 +857,6 @@ export default function App() {
             gated={!!loadedCloudSave?.publicKeyJwk?.n && !teacherKeysMatch}
           />
 
-          <div className="header-sep" />
-          <SimulationControls
-            sim={sim}
-            dispatch={dispatch}
-            appMode={appMode}
-            pythonRunner={pythonRunner}
-            runnerStatus={runner.status}
-            generatePython={generatePython}
-            awaitingInput={runner.awaitingInput}
-          />
           <div className="header-sep" />
 
           <button className="header-btn" title="Settings"
@@ -967,6 +990,11 @@ export default function App() {
               <WorldEditor world={world} sensors={sensors} simMode={sim.mode}
                 worldTool={worldTool} dispatch={dispatch} />
             </div>
+            {/* Variables chip sits flush under the world so loop-counter
+                values are visible alongside Kara's movement during a run.
+                Renders nothing when there's no active run or no primitive
+                locals to surface — see VariablesDisplay.jsx. */}
+            <VariablesDisplay locals={runner.locals} />
           </div>
           <div className="left-panel-scroll">
             {notesOpen && (
@@ -987,6 +1015,20 @@ export default function App() {
         <div className="hsplit-handle" onMouseDown={handleHSplitDrag} />
 
         <div className="right-panel panel">
+          {/* SimulationControls used to live in the top header bar; moved
+              here so the Run / Pause / Reset / Speed controls sit right
+              above the code editor where users instinctively look. */}
+          <div className="sim-controls-bar">
+            <SimulationControls
+              sim={sim}
+              dispatch={dispatch}
+              appMode={appMode}
+              pythonRunner={pythonRunner}
+              runnerStatus={runner.status}
+              generatePython={generatePython}
+              awaitingInput={runner.awaitingInput}
+            />
+          </div>
           {challengeEditor && editorActiveTab === 'challenges' && editingChallenge && challengeResult && (
             <div className={`editor-result-bar ${challengeResult}`}>
               {challengeResult === 'success'

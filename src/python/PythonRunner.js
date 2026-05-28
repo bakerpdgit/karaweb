@@ -21,6 +21,18 @@ import { applyKaraPyAction, readKaraPySensor, cloneWorld } from '../utils.js';
 
 const WORKER_URL = '/pyodide-worker.js';
 
+// Module-level monotonically-increasing run counter. Combined with the page
+// load timestamp it uniquely identifies each Run-button press across the
+// lifetime of the tab, so the service worker can reject sync-XHR fetches
+// from a previous (now-cancelled or terminated) run before they deadlock the
+// next run's promise channel.
+const PAGE_LOAD_TAG = String(Date.now());
+let runCounter = 0;
+function nextRunToken() {
+  runCounter += 1;
+  return `${PAGE_LOAD_TAG}-${runCounter}`;
+}
+
 export class PythonRunner {
   constructor({ getWorld, getSpeed, getMode, dispatch }) {
     this.getWorld  = getWorld;
@@ -127,9 +139,17 @@ export class PythonRunner {
     } catch {
       return;
     }
+    // Mint a fresh runToken for this Run-button press. The SW gets told
+    // first (so any in-flight stale fetch is rejected immediately when
+    // it lands), then the worker is told so every sync-XHR it makes
+    // carries the matching token.
+    const runToken = nextRunToken();
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ cmd: 'ps-set-active-run', runToken });
+    }
     this.dispatch({ type: 'RUN_SET_STATUS', status: 'running' });
     this.running = true;
-    this.worker.postMessage({ cmd: stepped ? 'debug' : 'run', code });
+    this.worker.postMessage({ cmd: stepped ? 'debug' : 'run', code, runToken });
   }
 
   pause() {
@@ -290,7 +310,7 @@ export class PythonRunner {
     }
   }
 
-  handleBreakpoint({ lineno }) {
+  handleBreakpoint({ lineno, locals: frameLocals }) {
     const mode = this.getMode();
     if (mode === 'blocks') {
       const blockId = this.lineToBlockId[lineno] ?? null;
@@ -301,6 +321,9 @@ export class PythonRunner {
       const userLine = this.lineToBlockId[lineno] ?? null;
       this.dispatch({ type: 'PYC_SET_CURRENT_LINE', line: userLine });
     }
+    // Forward primitive locals captured by the Python runtime so the
+    // Variables chip can render their current values.
+    this.dispatch({ type: 'RUNNER_SET_LOCALS', locals: frameLocals || {} });
 
     if (this.userPaused) {
       this.dispatch({ type: 'RUN_SET_STATUS', status: 'paused' });

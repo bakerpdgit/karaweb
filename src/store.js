@@ -36,6 +36,7 @@ export const initialState = {
     awaitingInput: false,    // worker is parked waiting for user input()
     inputPrompt: '',         // prompt text passed to input()
     installing: null,        // name of pyodide package currently being installed
+    locals: {},              // { name: repr } shipped by kara_init.py on each breakpoint
   },
   blocks: {
     blocklyState: null,         // Blockly.serialization.workspaces.save()
@@ -693,6 +694,7 @@ function innerReducer(state, action) {
           log: [],
           error: null,
         },
+        runner: { ...state.runner, locals: {} },
       };
     }
 
@@ -789,6 +791,14 @@ function innerReducer(state, action) {
     case 'RUN_SET_INSTALLING':
       return { ...state, runner: { ...state.runner, installing: action.name ?? null } };
 
+    case 'RUNNER_SET_LOCALS':
+      // Snapshot of the user-frame's primitive locals shipped by the
+      // Python runtime on every breakpoint. Drives the Variables chip.
+      return {
+        ...state,
+        runner: { ...state.runner, locals: action.locals && typeof action.locals === 'object' ? action.locals : {} },
+      };
+
     case 'RUN_SET_ERROR':
       return {
         ...state,
@@ -876,7 +886,7 @@ function innerReducer(state, action) {
           log: [],
           error: null,
         },
-        runner: { ...state.runner, status: 'idle', awaitingInput: false, inputPrompt: '' },
+        runner: { ...state.runner, status: 'idle', awaitingInput: false, inputPrompt: '', locals: {} },
         blocks: { ...state.blocks, currentBlockId: null, errorBlockId: null },
         python: { ...state.python, currentLine: null, errorLine: null },
       };
@@ -891,7 +901,7 @@ function innerReducer(state, action) {
       return {
         ...state,
         sim: { ...state.sim, mode: 'paused' },
-        runner: { ...state.runner, status: 'finished', awaitingInput: false, inputPrompt: '' },
+        runner: { ...state.runner, status: 'finished', awaitingInput: false, inputPrompt: '', locals: {} },
         blocks: { ...state.blocks, currentBlockId: null },
         python: { ...state.python, currentLine: null },
       };

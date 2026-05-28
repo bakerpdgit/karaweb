@@ -1,4 +1,17 @@
 import React from 'react';
+import { CURRENT_BUILD_TIME } from '../utils/updateCheck.js';
+
+function formatBuildTime(iso) {
+  if (!iso) return 'dev';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
 
 export default function AboutModal({ onClose }) {
   return (
@@ -84,6 +97,10 @@ export default function AboutModal({ onClose }) {
             </a>.
           </p>
         </section>
+
+        <p className="about-version">
+          Version: <code>{formatBuildTime(CURRENT_BUILD_TIME)}</code>
+        </p>
 
         <div className="modal-actions">
           <button className="btn-primary" onClick={onClose}>Close</button>

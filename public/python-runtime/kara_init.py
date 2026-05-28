@@ -52,11 +52,29 @@ def post_message(data):
     js.workerPostMessage(to_js(data, dict_converter=js.Object.fromEntries))
 
 def synchronise(url):
+    # Append the current run's token so the service worker can reject
+    # sync-XHR fetches from a previous (now-cancelled or terminated) run
+    # immediately, instead of letting them deadlock the next run's
+    # promise channel. CURRENT_RUN_TOKEN is set per-run by the worker
+    # before invoking pydebug / pyrun.
+    token = globals().get('CURRENT_RUN_TOKEN', '') or ''
+    if token:
+        sep = '&' if '?' in url else '?'
+        url = f'{url}{sep}runToken={token}'
     x = js.XMLHttpRequest.new()
     x.open('get', url, False)
     x.setRequestHeader('cache-control', 'no-cache, no-store, max-age=0')
     x.send()
     return x.response
+
+
+class _RunCancelled(BaseException):
+    """Raised inside the user-program frame when the service worker tells us
+    this run has been cancelled (Reset clicked, or this worker is stale and
+    a newer one took over). Inherits BaseException so a stray `except
+    Exception` in user code can't accidentally swallow it. Caught at the
+    top of pydebug to unwind cleanly."""
+    pass
 
 
 # ── Ladybird (kara) — methods marshalled to the main thread ──────────────────
@@ -105,6 +123,8 @@ class Ladybird:
             resp = json.loads(raw)
         except Exception:
             raise KaraError('Internal: kara bridge returned malformed response.')
+        if resp.get('cancelled'):
+            raise _RunCancelled()
         if resp.get('error'):
             raise KaraError(resp['error'])
         return resp.get('value')
@@ -164,6 +184,8 @@ def debug_input(prompt=""):
         resp = json.loads(raw) if raw else {}
     except Exception:
         resp = {}
+    if resp.get('cancelled'):
+        raise _RunCancelled()
     return resp.get('data', '')
 
 
@@ -174,6 +196,55 @@ def _make_breakpoint_call(lineno):
         args=[ast.Constant(value=lineno)],
         keywords=[],
     ))
+
+
+def _capture_locals_for_chip():
+    """Snapshot the user-frame's local variables for the Variables chip
+    in the UI. Walks up the Python frame stack from this helper, looking
+    for the first frame whose code-object filename is our compiled
+    user-program marker (`YourPythonCode.py`, set by pydebug's compile
+    call). Matching on filename is necessary because the kara_init.py
+    module globals ALSO contain `hit_breakpoint`, so a globals-identity
+    check would incorrectly pick up `hit_breakpoint`'s own frame (and
+    its `lineno` parameter would show up in the chip).
+
+    Returns a small dict of `{name: short_repr}` filtered to primitive
+    types and capped to ~12 entries so each breakpoint stays cheap.
+    Skips dunder names and Kara-runtime helpers that live in the
+    user's globals via _fresh_globals."""
+    try:
+        frame = None
+        for depth in range(1, 30):
+            try:
+                f = sys._getframe(depth)
+            except ValueError:
+                break
+            if f.f_code.co_filename == 'YourPythonCode.py':
+                frame = f
+                break
+        if frame is None:
+            return {}
+        SKIP_NAMES = ('kara', 'hit_breakpoint', 'traceback',
+                      'Ladybird', 'KaraError', 'karaweb', 'input',
+                      'CURRENT_RUN_TOKEN')
+        out = {}
+        for name, val in list(frame.f_locals.items()):
+            if len(out) >= 12:
+                break
+            if name.startswith('_'):
+                continue
+            if name in SKIP_NAMES:
+                continue
+            if isinstance(val, bool) or isinstance(val, (int, float)):
+                out[name] = repr(val)
+            elif isinstance(val, str):
+                s = repr(val)
+                if len(s) <= 40:
+                    out[name] = s
+            # skip lists / dicts / objects — too noisy for a chip
+        return out
+    except Exception:
+        return {}
 
 
 def _instrument(node):
@@ -221,7 +292,12 @@ def pydebug(code, breakpoints=None, watches=None):
     ast.fix_missing_locations(parsed)
 
     injected_count = 0  # currently unused but kept for parity
-    exec(compile(parsed, filename="YourPythonCode.py", mode="exec"), global_vars)
+    try:
+        exec(compile(parsed, filename="YourPythonCode.py", mode="exec"), global_vars)
+    except _RunCancelled:
+        # Reset was clicked (or this worker is stale); unwind the user's
+        # frames cleanly without surfacing a traceback to the output panel.
+        pass
 
 
 def hit_breakpoint(lineno):
@@ -230,11 +306,14 @@ def hit_breakpoint(lineno):
     if not step_into:
         return
     step_into = False
-    post_message({'cmd': 'breakpt', 'lineno': lineno})
+    locs = _capture_locals_for_chip()
+    post_message({'cmd': 'breakpt', 'lineno': lineno, 'locals': locs})
     raw = synchronise('/@step@/break.js')
     try:
         resp = json.loads(raw) if raw else {}
     except Exception:
         resp = {}
+    if resp.get('cancelled'):
+        raise _RunCancelled()
     if resp.get('step'):
         step_into = True

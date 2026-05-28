@@ -4,7 +4,7 @@ import { newGuid } from './utils/guid.js';
 
 export const DIRECTIONS = ['right', 'down', 'left', 'up'];
 
-const DIR_DELTA = {
+export const DIR_DELTA = {
   right: { dx: 1, dy: 0 },
   down:  { dx: 0, dy: 1 },
   left:  { dx: -1, dy: 0 },

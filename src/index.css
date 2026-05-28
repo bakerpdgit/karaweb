@@ -290,6 +290,30 @@ html, body, #root {
 .world-cell.sensor-left  { box-shadow: inset 0 0 0 2px #a78bfa; }
 .world-cell.sensor-right { box-shadow: inset 0 0 0 2px #38bdf8; }
 
+/* Wrap-around indicator: when a sensor cell sits on the opposite edge
+   of the grid because Kara's step wrapped, draw a thick dashed line
+   on the cell side that touches the world's outer edge — a visual
+   "this came from off-grid the other way" cue. Tiny chevron in the
+   corner reinforces the direction the wrap came from. */
+.world-cell[class*="wrap-from-"] { position: relative; }
+.world-cell.wrap-from-left   { border-left:   3px dashed rgba(245, 158, 11, 0.85); }
+.world-cell.wrap-from-right  { border-right:  3px dashed rgba(245, 158, 11, 0.85); }
+.world-cell.wrap-from-top    { border-top:    3px dashed rgba(245, 158, 11, 0.85); }
+.world-cell.wrap-from-bottom { border-bottom: 3px dashed rgba(245, 158, 11, 0.85); }
+.world-cell[class*="wrap-from-"]::after {
+  position: absolute;
+  font-size: 9px;
+  line-height: 1;
+  color: rgba(180, 83, 9, 0.9);
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 2;
+}
+.world-cell.wrap-from-left::after   { content: '↺'; left: 1px;   top: 50%; transform: translateY(-50%); }
+.world-cell.wrap-from-right::after  { content: '↻'; right: 1px;  top: 50%; transform: translateY(-50%); }
+.world-cell.wrap-from-top::after    { content: '↺'; top: 1px;    left: 50%; transform: translateX(-50%); }
+.world-cell.wrap-from-bottom::after { content: '↻'; bottom: 1px; left: 50%; transform: translateX(-50%); }
+
 /* Kara overlay — sits absolutely on top */
 .kara-overlay {
   position: absolute;
@@ -380,6 +404,44 @@ html, body, #root {
 .sensor-val  { font-size: 11px; font-weight: 700; }
 .sensor-val.true  { color: #16a34a; }
 .sensor-val.false { color: #94a3b8; }
+
+/* ── Variables chip (Python/Blocks runtime locals snapshot) ── */
+.variables-display {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.variables-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.variables-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.var-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #78350f;
+}
+.var-name { font-weight: 700; }
+.var-eq   { color: #b45309; }
+.var-val  { color: #1e293b; }
 
 /* ── FSM editor ──────────────────────────────────────────────────────────────── */
 .fsm-editor {
@@ -1124,6 +1186,48 @@ html, body, #root {
   padding: 2px 8px;
   font-size: 11px;
   color: #475569;
+}
+
+/* ── "New version available" banner (pinned at top of the app shell) ── */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, #e0f2fe 0%, #ddd6fe 100%);
+  border-bottom: 1px solid #93c5fd;
+  font-size: 13px;
+  color: #1e3a8a;
+  flex-shrink: 0;
+}
+.update-banner-text { font-weight: 600; }
+.update-banner-action {
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #1d4ed8;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.update-banner-action:hover { background: #1d4ed8; }
+
+/* ── About modal version line ── */
+.about-version {
+  margin: 10px 0 0 0;
+  font-size: 12px;
+  color: #64748b;
+  text-align: right;
+}
+.about-version code {
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #1e293b;
 }
 
 .save-hint {
@@ -2193,6 +2297,24 @@ html, body, #root {
 .ch-target-toggle .view-tab.active {
   background: #d97706;
   color: #fff;
+}
+
+/* ── Simulation controls bar (above the right-hand editor) ── */
+.sim-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.sim-controls-bar .sim-controls {
+  /* override the spread-around-the-header padding so the inner widget
+     packs tight on the new bar */
+  margin: 0;
 }
 
 /* ── Editor pass/fail bar (above the right-hand editor in editor mode) ── */

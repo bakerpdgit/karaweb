@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { DIR_DELTA, turnLeft, turnRight } from '../utils.js';
 
 const MIN_CELL = 20;
 const MAX_CELL = 60;
@@ -99,7 +100,7 @@ export function LeafCornerBadge({ size }) {
 
 // ── Cell ─────────────────────────────────────────────────────────────────────
 
-function WorldCell({ cell, isKara, karaDir, highlight, simMode, tool, onClick, onEnter, cellSize }) {
+function WorldCell({ cell, isKara, karaDir, highlight, wrapSide, simMode, tool, onClick, onEnter, cellSize }) {
   const bgClass = [
     'world-cell',
     cell.hasLeaf ? 'has-leaf' : '',
@@ -107,6 +108,7 @@ function WorldCell({ cell, isKara, karaDir, highlight, simMode, tool, onClick, o
     highlight === 'left'  ? 'sensor-left'  : '',
     highlight === 'right' ? 'sensor-right' : '',
     highlight === 'kara'  ? 'sensor-kara'  : '',
+    wrapSide ? `wrap-from-${wrapSide}` : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -191,14 +193,33 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
     }
   }, [applyTool, world.kara, worldTool, dispatch]);
 
-  // Build sensor highlight map
+  // Build sensor highlight map + parallel wrap-direction map. A sensor
+  // cell is "wrapped" when its position is on the opposite edge from
+  // Kara because the unwrapped step landed outside the grid — we
+  // surface this as a subtle dashed-edge chevron so the toroidal
+  // geometry isn't silently confusing.
   const highlights = {};
+  const wrapFrom = {};   // cellKey → 'left'|'right'|'top'|'bottom'
   if (sensors) {
     const kp = `${world.kara.x},${world.kara.y}`;
     highlights[kp] = 'kara';
-    if (sensors._frontPos) highlights[`${sensors._frontPos.x},${sensors._frontPos.y}`] = 'front';
-    if (sensors._leftPos)  highlights[`${sensors._leftPos.x},${sensors._leftPos.y}`]  = 'left';
-    if (sensors._rightPos) highlights[`${sensors._rightPos.x},${sensors._rightPos.y}`] = 'right';
+    const dirs = [
+      { dir: world.kara.direction,            pos: sensors._frontPos, kind: 'front' },
+      { dir: turnLeft(world.kara.direction),  pos: sensors._leftPos,  kind: 'left'  },
+      { dir: turnRight(world.kara.direction), pos: sensors._rightPos, kind: 'right' },
+    ];
+    for (const { dir, pos, kind } of dirs) {
+      if (!pos) continue;
+      const cellKey = `${pos.x},${pos.y}`;
+      highlights[cellKey] = kind;
+      const { dx, dy } = DIR_DELTA[dir] || { dx: 0, dy: 0 };
+      const naiveX = world.kara.x + dx;
+      const naiveY = world.kara.y + dy;
+      if (naiveX < 0)              wrapFrom[cellKey] = 'right';
+      else if (naiveX >= world.width)  wrapFrom[cellKey] = 'left';
+      else if (naiveY < 0)         wrapFrom[cellKey] = 'bottom';
+      else if (naiveY >= world.height) wrapFrom[cellKey] = 'top';
+    }
   }
 
   return (
@@ -274,6 +295,7 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
                   isKara={world.kara.x === x && world.kara.y === y}
                   karaDir={world.kara.direction}
                   highlight={highlights[key]}
+                  wrapSide={wrapFrom[key]}
                   simMode={simMode}
                   tool={worldTool}
                   cellSize={cellSize}
