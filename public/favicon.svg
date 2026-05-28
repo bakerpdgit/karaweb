@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Round red body -->
+  <circle cx="16" cy="18" r="13" fill="#dc2626"/>
+  <!-- Dark head bump on top -->
+  <ellipse cx="16" cy="6" rx="7" ry="5.5" fill="#1e293b"/>
+  <!-- Two small white eyes -->
+  <circle cx="13" cy="6" r="1.2" fill="#f8fafc"/>
+  <circle cx="19" cy="6" r="1.2" fill="#f8fafc"/>
+  <!-- Vertical wing-split line down the body -->
+  <line x1="16" y1="9" x2="16" y2="31" stroke="#1e293b" stroke-width="1.5"/>
+  <!-- Four symmetric spots -->
+  <circle cx="10" cy="15" r="2.5" fill="#1e293b"/>
+  <circle cx="22" cy="15" r="2.5" fill="#1e293b"/>
+  <circle cx="10" cy="23" r="2.5" fill="#1e293b"/>
+  <circle cx="22" cy="23" r="2.5" fill="#1e293b"/>
+</svg>

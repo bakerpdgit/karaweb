@@ -42,7 +42,7 @@ import { app, Datastore } from "codehooks-js";
 // These bake in the production answers so a fresh Codehooks deploy
 // works out of the box. Teachers following the in-app setup wizard
 // never need to touch Codehooks env vars — these defaults cover the
-// shipped KaraWeb deployment at kara.classinteractives.co.uk and
+// shipped KaraWeb deployment at karaweb.classinteractives.co.uk and
 // route bot-protection through the maintainer's shared Cloudflare
 // Worker (so no per-teacher Turnstile secret distribution).
 //
@@ -61,7 +61,7 @@ import { app, Datastore } from "codehooks-js";
 //
 // `TURNSTILE_SECRET_KEY` is NO LONGER read by this backend — the
 // Worker proxy holds the only copy.
-const DEFAULT_ALLOWED_ORIGINS = ["https://kara.classinteractives.co.uk"];
+const DEFAULT_ALLOWED_ORIGINS = ["https://karaweb.classinteractives.co.uk"];
 // Bare workers.dev URL — works without bringing the parent zone into
 // Cloudflare's DNS (which would be needed for a custom-subdomain
 // Worker route). The Worker accepts POST at any path; we use the
@@ -72,15 +72,15 @@ const DEFAULT_TURNSTILE_REQUIRED = true;
 // ────────────────────────────────────────────────────────────────────
 
 const PUB_SETTINGS_COLLECTION = "pub_settings";
-const RESULTS_COLLECTION      = "results";
-const CHALLENGE_COLLECTION    = "teacher_challenges";
-const SESSION_COLLECTION      = "teacher_sessions";
+const RESULTS_COLLECTION = "results";
+const CHALLENGE_COLLECTION = "teacher_challenges";
+const SESSION_COLLECTION = "teacher_sessions";
 
-const MAX_PAYLOAD_CHARS    = 14000;            // matches Apps Script
-const MAX_TURNSTILE_CHARS  = 2048;
-const MAX_SUBMISSION_CAP   = 200;                // per (pubFp, file, student, challenge)
-const CHALLENGE_TTL_MS     = 5 * 60 * 1000;
-const SESSION_TTL_MS       = 2 * 60 * 60 * 1000;
+const MAX_PAYLOAD_CHARS = 14000; // matches Apps Script
+const MAX_TURNSTILE_CHARS = 2048;
+const MAX_SUBMISSION_CAP = 200; // per (pubFp, file, student, challenge)
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
 // ── Data retention (edit me) ────────────────────────────────────────
 // Submission rows older than this many days are removed automatically
@@ -114,17 +114,21 @@ const STUDENT_CODE_HASH_PATTERN = /^[0-9a-f]{16}$/i;
 
 const ENVELOPE_HEADER = "KaraWeb Cloud Save";
 const ENVELOPE_FORMAT = "karaweb-result-hybrid-v1";
-const ENVELOPE_ALGO   = "RSA-OAEP-256+A256GCM";
+const ENVELOPE_ALGO = "RSA-OAEP-256+A256GCM";
 // RSA-4096 OAEP-wrapped 32-byte AES key → 512-byte ciphertext →
 // base64 ≈ 684 chars. AES-GCM IV is always 12 bytes → base64 16 chars.
-const ENV_KEY_MIN = 620; const ENV_KEY_MAX = 750;
-const ENV_IV_MIN  = 14;  const ENV_IV_MAX  = 32;
+const ENV_KEY_MIN = 620;
+const ENV_KEY_MAX = 750;
+const ENV_IV_MIN = 14;
+const ENV_IV_MAX = 32;
 
 // Mark everything under /api/public/ as no-auth (we run our own
 // CORS + per-class bearer-token checks). Use an explicit RegExp
 // rather than a glob string so codehooks-js path matchers across
 // versions reliably treat this as "any path with this prefix".
-app.auth(/^\/api\/public\//, (req, res, next) => { next(); });
+app.auth(/^\/api\/public\//, (req, res, next) => {
+  next();
+});
 
 app.get("/api/public/health", (req, res) => {
   if (!prepareRequest(req, res)) return;
@@ -156,10 +160,13 @@ app.post("/api/public/teacher/challenge", async (req, res) => {
     }
     const pubFingerprint = await derivePubFingerprint(publicKeyJwk);
     const conn = await Datastore.open();
-    const settings = await conn.findOneOrNull(PUB_SETTINGS_COLLECTION, { pubFingerprint });
-    const pwVerifier = typeof body.pwVerifier === "string" && body.pwVerifier.length > 0
-      ? body.pwVerifier
-      : "";
+    const settings = await conn.findOneOrNull(PUB_SETTINGS_COLLECTION, {
+      pubFingerprint,
+    });
+    const pwVerifier =
+      typeof body.pwVerifier === "string" && body.pwVerifier.length > 0
+        ? body.pwVerifier
+        : "";
     if (settings && settings.submissionVerifier) {
       if (!pwVerifier) {
         res.status(401).json({ error: "pw_required" });
@@ -173,12 +180,17 @@ app.post("/api/public/teacher/challenge", async (req, res) => {
       // TOFU install. Future challenges must match this verifier.
       const now = new Date().toISOString();
       if (settings) {
-        await conn.updateOne(PUB_SETTINGS_COLLECTION, { pubFingerprint },
-          { submissionVerifier: pwVerifier, updatedAt: now });
+        await conn.updateOne(
+          PUB_SETTINGS_COLLECTION,
+          { pubFingerprint },
+          { submissionVerifier: pwVerifier, updatedAt: now },
+        );
       } else {
         await conn.insertOne(PUB_SETTINGS_COLLECTION, {
-          pubFingerprint, submissionVerifier: pwVerifier,
-          createdAt: now, updatedAt: now,
+          pubFingerprint,
+          submissionVerifier: pwVerifier,
+          createdAt: now,
+          updatedAt: now,
         });
       }
     }
@@ -186,16 +198,31 @@ app.post("/api/public/teacher/challenge", async (req, res) => {
     const nonce = randomToken(32);
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS).toISOString();
     await conn.insertOne(CHALLENGE_COLLECTION, {
-      challengeId, pubFingerprint,
+      challengeId,
+      pubFingerprint,
       nonceHash: sha256(nonce),
-      expiresAt, used: false,
+      expiresAt,
+      used: false,
       createdAt: new Date().toISOString(),
     });
     const encryptedChallenge = encryptForPublicKey(
-      { version: 1, type: "karaweb-teacher-challenge", challengeId, pubFingerprint, nonce, expiresAt },
+      {
+        version: 1,
+        type: "karaweb-teacher-challenge",
+        challengeId,
+        pubFingerprint,
+        nonce,
+        expiresAt,
+      },
       publicKeyJwk,
     );
-    res.json({ success: true, challengeId, pubFingerprint, encryptedChallenge, expiresAt });
+    res.json({
+      success: true,
+      challengeId,
+      pubFingerprint,
+      encryptedChallenge,
+      expiresAt,
+    });
   } catch (err) {
     console.error("teacher/challenge failed", err);
     res.status(500).json({ error: "Failed to create teacher challenge" });
@@ -207,13 +234,15 @@ app.post("/api/public/teacher/session", async (req, res) => {
   try {
     const body = req.body || {};
     const challengeId = String(body.challengeId || "");
-    const nonce       = String(body.nonce || "");
+    const nonce = String(body.nonce || "");
     if (!GUID_PATTERN.test(challengeId) || !nonce) {
       res.status(400).json({ error: "Invalid teacher challenge response" });
       return;
     }
     const conn = await Datastore.open();
-    const challenge = await conn.findOneOrNull(CHALLENGE_COLLECTION, { challengeId });
+    const challenge = await conn.findOneOrNull(CHALLENGE_COLLECTION, {
+      challengeId,
+    });
     if (!challenge || challenge.used || isExpired(challenge.expiresAt)) {
       res.status(403).json({ error: "Teacher challenge expired" });
       return;
@@ -222,16 +251,25 @@ app.post("/api/public/teacher/session", async (req, res) => {
       res.status(403).json({ error: "Teacher challenge failed" });
       return;
     }
-    await conn.updateOne(CHALLENGE_COLLECTION, { challengeId },
-      { used: true, usedAt: new Date().toISOString() });
+    await conn.updateOne(
+      CHALLENGE_COLLECTION,
+      { challengeId },
+      { used: true, usedAt: new Date().toISOString() },
+    );
     const sessionToken = randomToken(32);
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
     await conn.insertOne(SESSION_COLLECTION, {
       tokenHash: sha256(sessionToken),
       pubFingerprint: challenge.pubFingerprint,
-      expiresAt, createdAt: new Date().toISOString(),
+      expiresAt,
+      createdAt: new Date().toISOString(),
     });
-    res.json({ success: true, pubFingerprint: challenge.pubFingerprint, sessionToken, expiresAt });
+    res.json({
+      success: true,
+      pubFingerprint: challenge.pubFingerprint,
+      sessionToken,
+      expiresAt,
+    });
   } catch (err) {
     console.error("teacher/session failed", err);
     res.status(500).json({ error: "Failed to create teacher session" });
@@ -247,11 +285,11 @@ app.post("/api/public/results", async (req, res) => {
       res.status(400).json({ error: "Submission rejected" });
       return;
     }
-    const pubFingerprint     = String(body.pubFingerprint || "").toLowerCase();
-    const studentCodeHash    = String(body.studentCodeHash || "").toLowerCase();
+    const pubFingerprint = String(body.pubFingerprint || "").toLowerCase();
+    const studentCodeHash = String(body.studentCodeHash || "").toLowerCase();
     const wrappedStudentCode = String(body.wrappedStudentCode || "");
-    const challengeGuid      = String(body.challengeGuid || "");
-    const challengeFileGuid  = String(body.challengeFileGuid || "");
+    const challengeGuid = String(body.challengeGuid || "");
+    const challengeFileGuid = String(body.challengeFileGuid || "");
     if (!PUB_FINGERPRINT_PATTERN.test(pubFingerprint)) {
       res.status(400).json({ error: "Invalid pubFingerprint" });
       return;
@@ -273,7 +311,11 @@ app.post("/api/public/results", async (req, res) => {
       return;
     }
     const payload = body.encryptedPayload;
-    if (typeof payload !== "string" || payload.length < 20 || payload.length > MAX_PAYLOAD_CHARS) {
+    if (
+      typeof payload !== "string" ||
+      payload.length < 20 ||
+      payload.length > MAX_PAYLOAD_CHARS
+    ) {
       res.status(400).json({ error: "Invalid encryptedPayload" });
       return;
     }
@@ -284,9 +326,11 @@ app.post("/api/public/results", async (req, res) => {
     // wrappedStudentCode is the same KaraWeb-envelope shape as the
     // payload — RSA-OAEP-256+A256GCM, ~700 chars base64 — so we
     // reuse the same validator.
-    if (typeof wrappedStudentCode !== "string" ||
-        wrappedStudentCode.length < 20 ||
-        wrappedStudentCode.length > MAX_PAYLOAD_CHARS) {
+    if (
+      typeof wrappedStudentCode !== "string" ||
+      wrappedStudentCode.length < 20 ||
+      wrappedStudentCode.length > MAX_PAYLOAD_CHARS
+    ) {
       res.status(400).json({ error: "Invalid wrappedStudentCode" });
       return;
     }
@@ -314,7 +358,12 @@ app.post("/api/public/results", async (req, res) => {
     // Upsert key uses the studentCodeHash (pseudonym), never the
     // plaintext code. The wrappedStudentCode rides along on the
     // row but isn't part of the lookup key.
-    const key = { pubFingerprint, challengeFileGuid, studentCodeHash, challengeGuid };
+    const key = {
+      pubFingerprint,
+      challengeFileGuid,
+      studentCodeHash,
+      challengeGuid,
+    };
     const existing = await conn.findOneOrNull(RESULTS_COLLECTION, key);
     if (existing) {
       const count = Number(existing.count) || 0;
@@ -322,14 +371,24 @@ app.post("/api/public/results", async (req, res) => {
         res.status(429).json({ error: "cap_reached", count });
         return;
       }
-      await conn.updateOne(RESULTS_COLLECTION, { _id: existing._id }, {
+      await conn.updateOne(
+        RESULTS_COLLECTION,
+        { _id: existing._id },
+        {
+          count: count + 1,
+          latestPassed: passed,
+          encryptedPayload: payload,
+          wrappedStudentCode,
+          submittedAt,
+          receivedAt: now,
+        },
+      );
+      res.json({
+        success: true,
+        receivedAt: now,
         count: count + 1,
-        latestPassed: passed,
-        encryptedPayload: payload,
-        wrappedStudentCode,
-        submittedAt, receivedAt: now,
+        updated: true,
       });
-      res.json({ success: true, receivedAt: now, count: count + 1, updated: true });
       return;
     }
     const inserted = await conn.insertOne(RESULTS_COLLECTION, {
@@ -339,9 +398,15 @@ app.post("/api/public/results", async (req, res) => {
       firstAttemptPassed: passed,
       latestPassed: passed,
       encryptedPayload: payload,
-      submittedAt, receivedAt: now,
+      submittedAt,
+      receivedAt: now,
     });
-    res.json({ success: true, id: inserted._id, receivedAt: now, created: true });
+    res.json({
+      success: true,
+      id: inserted._id,
+      receivedAt: now,
+      created: true,
+    });
   } catch (err) {
     console.error("results POST failed", err);
     res.status(500).json({ error: "Failed to record result" });
@@ -372,8 +437,10 @@ app.get("/api/public/teacher/results", async (req, res) => {
       ? { pubFingerprint: session.pubFingerprint, challengeFileGuid: fileGuid }
       : { pubFingerprint: session.pubFingerprint };
     const records = await conn
-      .getMany(RESULTS_COLLECTION, filter,
-        { sort: { receivedAt: 1 }, limit: 5000 })
+      .getMany(RESULTS_COLLECTION, filter, {
+        sort: { receivedAt: 1 },
+        limit: 5000,
+      })
       .toArray();
     res.json({
       success: true,
@@ -399,14 +466,18 @@ app.delete("/api/public/teacher/results/:recordId", async (req, res) => {
   const recordId = String(req.params.recordId || "");
   try {
     const conn = await Datastore.open();
-    const existing = await conn.findOneOrNull(RESULTS_COLLECTION,
-      { _id: recordId, pubFingerprint: session.pubFingerprint });
+    const existing = await conn.findOneOrNull(RESULTS_COLLECTION, {
+      _id: recordId,
+      pubFingerprint: session.pubFingerprint,
+    });
     if (!existing) {
       res.status(404).json({ error: "Result not found" });
       return;
     }
-    await conn.removeOne(RESULTS_COLLECTION,
-      { _id: recordId, pubFingerprint: session.pubFingerprint });
+    await conn.removeOne(RESULTS_COLLECTION, {
+      _id: recordId,
+      pubFingerprint: session.pubFingerprint,
+    });
     res.json({ success: true, recordId });
   } catch (err) {
     console.error("teacher/results DELETE failed", err);
@@ -418,7 +489,10 @@ app.delete("/api/public/teacher/results/:recordId", async (req, res) => {
 app.all("/*", (req, res) => {
   applyCors(req, res);
   if (req.method === "OPTIONS") {
-    if (!isOriginAllowed(req)) { res.status(403).end(); return; }
+    if (!isOriginAllowed(req)) {
+      res.status(403).end();
+      return;
+    }
     res.status(204).end();
     return;
   }
@@ -438,23 +512,31 @@ function prepareRequest(req, res) {
 function allowedOrigins() {
   const fromEnv = String(process.env.ALLOWED_ORIGINS || "")
     .split(",")
-    .map(v => v.trim())
+    .map((v) => v.trim())
     .filter(Boolean);
   return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_ORIGINS.slice();
 }
 
 function originFromReferer(value) {
   if (!value) return "";
-  try { return new URL(value).origin; } catch { return ""; }
+  try {
+    return new URL(value).origin;
+  } catch {
+    return "";
+  }
 }
 
 function requestOrigin(req) {
-  return req.headers.origin
-    || originFromReferer(req.headers.referer || req.headers.referrer);
+  return (
+    req.headers.origin ||
+    originFromReferer(req.headers.referer || req.headers.referrer)
+  );
 }
 
 function localChecksDisabled() {
-  return String(process.env.DISABLE_ORIGIN_CHECKS || "").toLowerCase() === "true";
+  return (
+    String(process.env.DISABLE_ORIGIN_CHECKS || "").toLowerCase() === "true"
+  );
 }
 
 function isOriginAllowed(req) {
@@ -465,11 +547,12 @@ function isOriginAllowed(req) {
 }
 
 function applyCors(req, res) {
-  const origin  = requestOrigin(req);
+  const origin = requestOrigin(req);
   const origins = allowedOrigins();
   const corsOrigin =
-    (origin && (localChecksDisabled() || origins.includes(origin)) && origin)
-    || origins[0] || "";
+    (origin && (localChecksDisabled() || origins.includes(origin)) && origin) ||
+    origins[0] ||
+    "";
   if (corsOrigin) {
     res.set("Access-Control-Allow-Origin", corsOrigin);
     res.set("Vary", "Origin");
@@ -486,15 +569,22 @@ function applyCors(req, res) {
 // it just POSTs the student-supplied token to the Worker and reads
 // back the verdict. Same proxy pattern the Apps Script backend uses.
 async function verifyTurnstile(token) {
-  const requiredEnv = String(process.env.TURNSTILE_REQUIRED || "").toLowerCase();
+  const requiredEnv = String(
+    process.env.TURNSTILE_REQUIRED || "",
+  ).toLowerCase();
   const required = requiredEnv
     ? requiredEnv !== "false"
     : DEFAULT_TURNSTILE_REQUIRED;
   if (!required) return { success: true, skipped: true };
-  if (!token || typeof token !== "string" || token.length > MAX_TURNSTILE_CHARS) {
+  if (
+    !token ||
+    typeof token !== "string" ||
+    token.length > MAX_TURNSTILE_CHARS
+  ) {
     return { success: false, error: "missing-token" };
   }
-  const verifyUrl = process.env.TURNSTILE_VERIFY_URL || DEFAULT_TURNSTILE_VERIFY_URL;
+  const verifyUrl =
+    process.env.TURNSTILE_VERIFY_URL || DEFAULT_TURNSTILE_VERIFY_URL;
   let r;
   try {
     r = await fetch(verifyUrl, {
@@ -503,11 +593,17 @@ async function verifyTurnstile(token) {
       body: JSON.stringify({ tkn: token }),
     });
   } catch (err) {
-    return { success: false, error: "verify-proxy-unreachable", detail: String(err) };
+    return {
+      success: false,
+      error: "verify-proxy-unreachable",
+      detail: String(err),
+    };
   }
   if (!r.ok) return { success: false, error: "verify-proxy-http-" + r.status };
   let body;
-  try { body = await r.json(); } catch {
+  try {
+    body = await r.json();
+  } catch {
     return { success: false, error: "verify-proxy-non-json" };
   }
   return { success: !!body.success, errors: body.errors ?? [] };
@@ -537,18 +633,23 @@ async function runTeacherFetchHousekeeping(conn) {
   // bearer-token sessions are always cleaned up (they have their
   // own per-record `expiresAt` TTLs, unrelated to long-term
   // submission retention).
-  const removedResults = (RESULT_RETENTION_DAYS > 0)
-    ? await safeRemoveMany(
-        conn,
-        RESULTS_COLLECTION,
-        { receivedAt: { $lt: new Date(now.getTime() - RESULT_RETENTION_MS).toISOString() } },
-      )
-    : 0;
+  const removedResults =
+    RESULT_RETENTION_DAYS > 0
+      ? await safeRemoveMany(conn, RESULTS_COLLECTION, {
+          receivedAt: {
+            $lt: new Date(now.getTime() - RESULT_RETENTION_MS).toISOString(),
+          },
+        })
+      : 0;
   return {
     retentionDays: RESULT_RETENTION_DAYS,
     removedResults,
-    removedChallenges: await safeRemoveMany(conn, CHALLENGE_COLLECTION, { expiresAt: { $lt: cutoffNow } }),
-    removedSessions:   await safeRemoveMany(conn, SESSION_COLLECTION,   { expiresAt: { $lt: cutoffNow } }),
+    removedChallenges: await safeRemoveMany(conn, CHALLENGE_COLLECTION, {
+      expiresAt: { $lt: cutoffNow },
+    }),
+    removedSessions: await safeRemoveMany(conn, SESSION_COLLECTION, {
+      expiresAt: { $lt: cutoffNow },
+    }),
   };
 }
 
@@ -564,25 +665,30 @@ async function safeRemoveMany(conn, collection, query) {
 
 function removeCount(r) {
   if (!r || typeof r !== "object") return 0;
-  return Number(r.deletedCount) || Number(r.removedCount)
-       || Number(r.count) || Number(r.removed) || 0;
+  return (
+    Number(r.deletedCount) ||
+    Number(r.removedCount) ||
+    Number(r.count) ||
+    Number(r.removed) ||
+    0
+  );
 }
 
 // ── Shape helpers ──────────────────────────────────────────────────────
 function toResultRecord(r) {
   return {
     _id: r._id,
-    pubFingerprint:     r.pubFingerprint,
-    challengeFileGuid:  r.challengeFileGuid,
-    studentCodeHash:    r.studentCodeHash,
+    pubFingerprint: r.pubFingerprint,
+    challengeFileGuid: r.challengeFileGuid,
+    studentCodeHash: r.studentCodeHash,
     wrappedStudentCode: r.wrappedStudentCode,
-    challengeGuid:      r.challengeGuid,
-    submissionCount:    Number(r.count) || 0,
+    challengeGuid: r.challengeGuid,
+    submissionCount: Number(r.count) || 0,
     firstAttemptPassed: !!r.firstAttemptPassed,
-    latestPassed:       !!r.latestPassed,
-    encryptedPayload:   r.encryptedPayload,
-    submittedAt:        r.submittedAt,
-    receivedAt:         r.receivedAt,
+    latestPassed: !!r.latestPassed,
+    encryptedPayload: r.encryptedPayload,
+    submittedAt: r.submittedAt,
+    receivedAt: r.receivedAt,
   };
 }
 
@@ -595,11 +701,14 @@ async function derivePubFingerprint(publicKeyJwk) {
 }
 
 function isPublicKeyJwk(v) {
-  return !!(v && typeof v === "object"
-    && v.kty === "RSA"
-    && typeof v.n === "string"
-    && typeof v.e === "string"
-    && !v.d);     // explicitly reject private keys
+  return !!(
+    v &&
+    typeof v === "object" &&
+    v.kty === "RSA" &&
+    typeof v.n === "string" &&
+    typeof v.e === "string" &&
+    !v.d
+  ); // explicitly reject private keys
 }
 
 function validRecentTimestamp(value) {
@@ -647,16 +756,27 @@ function envelopeOk(text) {
   const headerNl = ENVELOPE_HEADER + "\n";
   if (s.indexOf(headerNl) !== 0) return false;
   let body;
-  try { body = JSON.parse(s.slice(headerNl.length)); } catch { return false; }
+  try {
+    body = JSON.parse(s.slice(headerNl.length));
+  } catch {
+    return false;
+  }
   if (!body || body.format !== ENVELOPE_FORMAT) return false;
   if (body.algorithm !== ENVELOPE_ALGO) return false;
-  if (typeof body.encryptedKey !== "string"
-      || body.encryptedKey.length < ENV_KEY_MIN
-      || body.encryptedKey.length > ENV_KEY_MAX) return false;
-  if (typeof body.iv !== "string"
-      || body.iv.length < ENV_IV_MIN
-      || body.iv.length > ENV_IV_MAX) return false;
-  if (typeof body.ciphertext !== "string" || body.ciphertext.length === 0) return false;
+  if (
+    typeof body.encryptedKey !== "string" ||
+    body.encryptedKey.length < ENV_KEY_MIN ||
+    body.encryptedKey.length > ENV_KEY_MAX
+  )
+    return false;
+  if (
+    typeof body.iv !== "string" ||
+    body.iv.length < ENV_IV_MIN ||
+    body.iv.length > ENV_IV_MAX
+  )
+    return false;
+  if (typeof body.ciphertext !== "string" || body.ciphertext.length === 0)
+    return false;
   return true;
 }
 
@@ -668,7 +788,7 @@ function envelopeOk(text) {
 
 function encryptForPublicKey(payload, publicKeyJwk) {
   const aesRaw = crypto.randomBytes(32);
-  const iv     = crypto.randomBytes(12);
+  const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", aesRaw, iv);
   const ciphertext = Buffer.concat([
     cipher.update(JSON.stringify(payload), "utf8"),
@@ -691,15 +811,20 @@ function rsaOaepEncrypt(message, jwk) {
   const e = base64UrlToBuffer(jwk.e);
   const k = n.length;
   const hLen = 32;
-  if (message.length > k - 2 * hLen - 2) throw new Error("Message too long for RSA-OAEP");
+  if (message.length > k - 2 * hLen - 2)
+    throw new Error("Message too long for RSA-OAEP");
   const lHash = crypto.createHash("sha256").update(Buffer.alloc(0)).digest();
   const ps = Buffer.alloc(k - message.length - 2 * hLen - 2);
   const db = Buffer.concat([lHash, ps, Buffer.from([0x01]), message]);
   const seed = crypto.randomBytes(hLen);
-  const maskedDb   = xorBuffers(db,   mgf1(seed,    k - hLen - 1));
+  const maskedDb = xorBuffers(db, mgf1(seed, k - hLen - 1));
   const maskedSeed = xorBuffers(seed, mgf1(maskedDb, hLen));
   const encoded = Buffer.concat([Buffer.from([0x00]), maskedSeed, maskedDb]);
-  const encrypted = modPow(bufferToBigInt(encoded), bufferToBigInt(e), bufferToBigInt(n));
+  const encrypted = modPow(
+    bufferToBigInt(encoded),
+    bufferToBigInt(e),
+    bufferToBigInt(n),
+  );
   return bigIntToBuffer(encrypted, k);
 }
 
@@ -722,7 +847,9 @@ function xorBuffers(left, right) {
 }
 
 function base64UrlToBuffer(value) {
-  let b = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  let b = String(value || "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
   while (b.length % 4) b += "=";
   return Buffer.from(b, "base64");
 }
