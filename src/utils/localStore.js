@@ -190,6 +190,75 @@ export function setLastLoadedCloudSave(challengeFileGuid, cs) {
   return writeJSON(`loaded.${challengeFileGuid}`, cs);
 }
 
+// ── Session-tier mirrors (per-tab, cleared on tab close) ────────────────
+// We unconditionally mirror state.keydetails + state.classes into
+// sessionStorage on every change so a page reload within the same tab
+// can re-hydrate them, even if the teacher said "No" to the
+// Remember-on-device localStorage prompt.
+//
+// Boot precedence: localStorage (opt-in, durable) > sessionStorage
+// (per-tab, automatic) > nothing (file prompt).
+
+const SESSION_KEYDETAILS_KEY = 'session.keydetails';
+const SESSION_CLASSES_KEY    = 'session.classes';
+
+function safeSessionGet(key) {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null;
+    return window.sessionStorage.getItem(PREFIX + key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSessionSet(key, value) {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return false;
+    window.sessionStorage.setItem(PREFIX + key, value);
+    return true;
+  } catch (err) {
+    if (typeof console !== 'undefined') {
+      console.warn('karaweb sessionStorage write failed:', err?.message ?? err);
+    }
+    return false;
+  }
+}
+
+function safeSessionRemove(key) {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    window.sessionStorage.removeItem(PREFIX + key);
+  } catch { /* ignore */ }
+}
+
+export function getSessionKeyDetails() {
+  const raw = safeSessionGet(SESSION_KEYDETAILS_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export function setSessionKeyDetails(kd) {
+  if (!kd?.publicKeyJwk) { safeSessionRemove(SESSION_KEYDETAILS_KEY); return; }
+  safeSessionSet(SESSION_KEYDETAILS_KEY, JSON.stringify(kd));
+}
+
+export function getSessionClasses() {
+  const raw = safeSessionGet(SESSION_CLASSES_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+export function setSessionClasses(list) {
+  if (!Array.isArray(list) || list.length === 0) {
+    safeSessionRemove(SESSION_CLASSES_KEY);
+    return;
+  }
+  safeSessionSet(SESSION_CLASSES_KEY, JSON.stringify(list));
+}
+
 // ── Welcome slideshow seen-flags ─────────────────────────────────────────
 // Two independent boolean preferences stored as the string '1'. Both are
 // UI preferences only — not gated behind the RememberOnDeviceModal

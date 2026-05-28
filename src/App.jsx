@@ -46,6 +46,8 @@ import {
   listClassLists, getClassList, setClassList,
   getWelcomeShown, setWelcomeShown,
   getMainWelcomeShown, setMainWelcomeShown,
+  getSessionKeyDetails, setSessionKeyDetails,
+  getSessionClasses, setSessionClasses,
   runLegacyMigrationOnce,
 } from './utils/localStore.js';
 import { encryptForPublicKey } from './utils/crypto/envelope.js';
@@ -244,13 +246,14 @@ export default function App() {
         passed,
         studentCode: studentSession.studentCode,
       };
+      // Both backends now default to TURNSTILE_REQUIRED=true, so fetch
+      // a token on every submission regardless of which backend the
+      // book uses.
       let turnstileToken = '';
-      if (loadedCloudSave.method === 'google-drive') {
-        try {
-          turnstileToken = await getTurnstileToken();
-        } catch (err) {
-          console.warn('Turnstile token fetch failed:', err?.message ?? err);
-        }
+      try {
+        turnstileToken = await getTurnstileToken();
+      } catch (err) {
+        console.warn('Turnstile token fetch failed:', err?.message ?? err);
       }
       if (cancelled) return;
       try {
@@ -312,7 +315,11 @@ export default function App() {
       if (m.codehooksConfigsRenamed)   bits.push(`${m.codehooksConfigsRenamed} codehooks setting${m.codehooksConfigsRenamed === 1 ? '' : 's'}`);
       setMigrationToast('Migrated legacy storage: ' + bits.join(', ') + '.');
     }
-    const storedKeys = getKeyDetails();
+    // Keydetails: prefer the opt-in localStorage copy; otherwise fall
+    // back to the per-tab sessionStorage mirror so a page reload within
+    // the same tab restores keys even when the teacher said "No" to the
+    // remember-on-device prompt.
+    const storedKeys = getKeyDetails() || getSessionKeyDetails();
     if (storedKeys?.publicKeyJwk) {
       if (storedKeys.privateKeyJwk) {
         // Plain-text stored keys → unlocked from the start.
@@ -331,11 +338,17 @@ export default function App() {
         }});
       }
     }
-    const allClasses = listClassLists()
-      .map(cc => getClassList(cc))
-      .filter(Boolean);
-    if (allClasses.length) {
-      dispatch({ type: 'CLASSES_SET_LIST', list: allClasses });
+    // Classes: merge whatever's in opt-in localStorage with whatever the
+    // sessionStorage mirror remembers (localStorage wins on classCode
+    // collisions because it's the explicitly-saved copy).
+    const localClasses   = listClassLists().map(cc => getClassList(cc)).filter(Boolean);
+    const sessionClasses = getSessionClasses();
+    const mergedByCode   = new Map();
+    for (const c of sessionClasses) if (c?.classCode) mergedByCode.set(c.classCode, c);
+    for (const c of localClasses)   if (c?.classCode) mergedByCode.set(c.classCode, c);
+    const mergedClasses = Array.from(mergedByCode.values());
+    if (mergedClasses.length) {
+      dispatch({ type: 'CLASSES_SET_LIST', list: mergedClasses });
     }
   }, []);
 
@@ -343,6 +356,35 @@ export default function App() {
   // lists to localStorage. The "Remember on this device?" modal
   // (TeacherKeysPanel + ClassListPanel) is the only path that writes
   // those keys, so the teacher is explicitly opting in each time.
+
+  // ── Session-tier auto-mirror ─────────────────────────────────────────
+  // Always shadow state.keydetails + state.classes into sessionStorage
+  // (unconditional, regardless of the user's Yes/No on the
+  // remember-on-device prompt) so a page reload within the same tab
+  // re-hydrates them without re-prompting. The localStorage tier is
+  // still opt-in via TeacherKeyCheckModal / ClassListPanel; this is a
+  // pure additional safety net per tab.
+  useEffect(() => {
+    if (!keydetails?.publicKeyJwk) {
+      setSessionKeyDetails(null);
+      return;
+    }
+    setSessionKeyDetails({
+      publicKeyJwk:     keydetails.publicKeyJwk,
+      privateKeyJwk:    keydetails.privateKeyJwk ?? null,
+      encryptedKeyPair: keydetails.encryptedKeyPair ?? null,
+      submissionVerifier: keydetails.submissionVerifier ?? null,
+    });
+  }, [
+    keydetails?.publicKeyJwk,
+    keydetails?.privateKeyJwk,
+    keydetails?.encryptedKeyPair,
+    keydetails?.submissionVerifier,
+  ]);
+
+  useEffect(() => {
+    setSessionClasses(classes ?? []);
+  }, [classes]);
 
   // ── First-run welcome slideshow ──────────────────────────────────────
   // Pop the welcome slideshow the first time the teacher enters the

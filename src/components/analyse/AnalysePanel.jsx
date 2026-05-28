@@ -272,8 +272,8 @@ export default function AnalysePanel({
                 className="btn-secondary"
                 disabled={!filteredStudents.length || !challenges.length}
                 onClick={onExport}
-                title="Download the visible grid as an Excel-readable .xls file"
-              >Export grid (.xls)</button>
+                title="Download the visible grid as an Excel-readable .xlsx file"
+              >Export grid (.xlsx)</button>
               {lastFetched && (
                 <span className="analyse-meta">last fetched {lastFetched.toLocaleTimeString()}</span>
               )}
