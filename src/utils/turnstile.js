@@ -108,6 +108,8 @@ export async function getTurnstileToken() {
     pendingReject  = reject;
     try {
       if (widgetId == null) {
+        // First-time render. Cloudflare hasn't started any prior
+        // execute, so the synchronous execute() runs clean.
         widgetId = window.turnstile.render(container, {
           sitekey: key,
           size: 'invisible',
@@ -115,10 +117,19 @@ export async function getTurnstileToken() {
           'error-callback': () => settle(new Error('Turnstile reported an error.')),
           'timeout-callback': () => settle(new Error('Turnstile timed out.')),
         });
+        window.turnstile.execute(widgetId);
       } else {
+        // Re-use: reset() clears any stale token, but Cloudflare's
+        // internal "executing" flag from the previous execute may
+        // still be set when called back-to-back — that triggers
+        // a benign but noisy console warning. Deferring execute()
+        // by one macrotask lets that flag clear first.
         window.turnstile.reset(widgetId);
+        setTimeout(() => {
+          try { window.turnstile.execute(widgetId); }
+          catch (err) { settle(err); }
+        }, 0);
       }
-      window.turnstile.execute(widgetId);
     } catch (err) {
       settle(err);
     }

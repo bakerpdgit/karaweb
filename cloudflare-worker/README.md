@@ -50,7 +50,7 @@ inside `__VERIFY_PROXY_URL__` (generated for you by the wizard's
 ## Smoke test
 
 ```powershell
-curl -X POST https://karaweb.classinteractives.co.uk/api/verify-turnstile `
+curl -X POST https://karaweb-turnstile-proxy.bakerpd.workers.dev `
   -H "Content-Type: application/json" `
   -d '{\"tkn\":\"clearly-fake-token\"}'
 # Expect: { "success": false, "errors": ["invalid-input-response"] }
