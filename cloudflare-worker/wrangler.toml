@@ -1,0 +1,19 @@
+name = "karaweb-turnstile-proxy"
+main = "src/index.js"
+compatibility_date = "2026-05-19"
+
+# Route the Worker at https://karaweb.classinteractives.co.uk/api/verify-turnstile
+# Requires the zone to be on the same Cloudflare account.
+# Uncomment + customise when deploying:
+
+[[routes]]
+pattern = "karaweb.classinteractives.co.uk/api/verify-turnstile"
+zone_name = "classinteractives.co.uk"
+
+# Workers Logs (last 30 days, useful for debugging Turnstile rejections).
+[observability]
+enabled = true
+
+# The Turnstile secret is set via:
+#   wrangler secret put TURNSTILE_SECRET_KEY
+# It will appear in the dashboard but never in this file.

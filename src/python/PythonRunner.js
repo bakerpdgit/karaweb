@@ -335,7 +335,7 @@ export class PythonRunner {
       }
       this.dispatch({
         type: 'RUN_SET_ERROR',
-        message: 'Python error — see the output panel for details.',
+        message: 'Error — see the output panel for details.',
         blockId,
         line,
       });

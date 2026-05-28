@@ -1,27 +1,132 @@
 import React, { useRef, useState } from 'react';
+import EditorTabs from './tabs/EditorTabs.jsx';
+import TeacherKeysPanel from './classlist/TeacherKeysPanel.jsx';
+import CloudSavePanel from './cloudsave/CloudSavePanel.jsx';
+import AnalysePanel from './analyse/AnalysePanel.jsx';
+import { useConfirmModal } from './ConfirmModal.jsx';
+import { newGuid } from '../utils/guid.js';
+// Note: the checkpoint controls + the notes editor used to live in
+// this file's ChallengesTab — they have been moved into
+// ChallengeCheckpointBar (rendered above the world in App.jsx) and
+// the Notes tab inside ChallengeContextPanel respectively.
 
 /**
- * Sidebar for the Challenge Editor view: list of challenges with rename,
- * reorder, add, and delete controls.
+ * Challenge Editor view with a horizontal tab bar.
  *
- * The world editor + program editor are rendered by App.jsx in their usual
- * panels — the reducer redirects edits to the active challenge so the same
+ * The "Challenges" tab keeps the existing sidebar+form behaviour intact:
+ * the world editor + program editor render in their usual panels below,
+ * and the reducer redirects edits to the active challenge so those
  * components transparently edit challenge state when challengeEditor is on.
+ *
+ * The other tabs (Class List, Cloud Save, Analyse Submissions) drop in
+ * panels that only need the sidebar area; the world/program panels keep
+ * rendering below so Blockly/Monaco state is preserved across tab
+ * switches.
  */
 export default function ChallengeEditor({
   challenges,
   editingChallengeId,
-  editingWorldView,
+  editorActiveTab,
+  appMode,
+  classList,
+  keydetails,
+  classes,
+  challengeFileGuid,
+  cloudSave,
+  analyse,
+  loadedCloudSave,
   dispatch,
+  requestPrivateKey,
 }) {
-  const renameRef = useRef(null);
   const editing = challenges.find(c => c.id === editingChallengeId);
-  const [renameDraft, setRenameDraft] = useState(editing?.name ?? '');
 
-  // Keep the rename input in sync when switching challenges.
+  // Cloud-save flow tabs are gated on having a teacher key pair. The
+  // Teacher Keys tab itself is always available so the teacher can
+  // generate / load keys before the rest unlock. Submissions stays
+  // open when keys exist (its inner Class Setup section is still
+  // useful even before Cloud Save is configured).
+  const disabledHints = {};
+  if (!keydetails) {
+    disabledHints.cloudSave = 'Generate or load your teacher keys first';
+    disabledHints.analyse   = 'Generate or load your teacher keys first';
+  }
+
+  // On the "challenges" tab the world / code editor renders below in
+  // main-layout — the bar stays content-sized. On other tabs main-
+  // layout is hidden so the bar should claim remaining space and
+  // scroll its tall content (e.g. Submissions grid).
+  const fillClass = editorActiveTab !== 'challenges' ? ' editor-bar-fill' : '';
+
+  return (
+    <div className={`challenge-editor-bar${fillClass}`}>
+      <div className="challenge-editor-bar-header">
+        <span className="challenge-editor-title">Challenge Editor</span>
+        <button
+          className="header-btn"
+          title="Exit editor and return to default workspace"
+          onClick={() => dispatch({ type: 'CH_EXIT_EDITOR' })}
+        >✕ Exit editor</button>
+      </div>
+
+      <EditorTabs
+        activeTab={editorActiveTab}
+        onChange={(tab) => dispatch({ type: 'EDITOR_SET_TAB', tab })}
+        disabledHints={disabledHints}
+      />
+
+      {editorActiveTab === 'challenges' && (
+        <ChallengesTab
+          challenges={challenges}
+          editing={editing}
+          appMode={appMode}
+          challengeFileGuid={challengeFileGuid}
+          dispatch={dispatch}
+        />
+      )}
+
+      {editorActiveTab === 'teacherKeys' && (
+        <TeacherKeysPanel
+          keydetails={keydetails}
+          dispatch={dispatch}
+          requestPrivateKey={requestPrivateKey}
+        />
+      )}
+
+      {editorActiveTab === 'cloudSave' && (
+        <CloudSavePanel
+          cloudSave={cloudSave}
+          classList={classList}
+          keydetails={keydetails}
+          dispatch={dispatch}
+        />
+      )}
+
+      {editorActiveTab === 'analyse' && (
+        <AnalysePanel
+          classList={classList}
+          classes={classes}
+          keydetails={keydetails}
+          cloudSave={cloudSave}
+          analyse={analyse}
+          challenges={challenges}
+          loadedCloudSave={loadedCloudSave}
+          challengeFileGuid={challengeFileGuid}
+          dispatch={dispatch}
+          requestPrivateKey={requestPrivateKey}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispatch }) {
+  const renameRef = useRef(null);
+  const [renameDraft, setRenameDraft] = useState(editing?.name ?? '');
+  const { confirm, modal } = useConfirmModal();
+
   React.useEffect(() => {
     setRenameDraft(editing?.name ?? '');
-  }, [editingChallengeId, editing?.name]);
+  }, [editing?.id, editing?.name]);
 
   const submitRename = () => {
     if (!editing) return;
@@ -33,35 +138,31 @@ export default function ChallengeEditor({
     }
   };
 
-  return (
-    <div className="challenge-editor-bar">
-      <div className="challenge-editor-bar-header">
-        <span className="challenge-editor-title">Challenge Editor</span>
-        <button
-          className="header-btn"
-          title="Add a new challenge"
-          onClick={() => dispatch({ type: 'CH_NEW' })}
-        >+ New</button>
-        <button
-          className="header-btn"
-          title="Exit editor and return to default workspace"
-          onClick={() => dispatch({ type: 'CH_EXIT_EDITOR' })}
-        >✕ Exit editor</button>
-      </div>
+  const regenerateGuid = async () => {
+    const ok = await confirm({
+      title: 'Regenerate file GUID?',
+      message: 'Previously-submitted results stay in your sheet but will no longer appear in Analyse.',
+      confirmLabel: 'Regenerate',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    dispatch({ type: 'CH_FILE_GUID_SET', guid: newGuid() });
+  };
 
+  return (
+    <>
       <div className="challenge-editor-body">
         <div className="challenge-list">
           {challenges.length === 0 && (
-            <div className="challenge-list-empty">Click <strong>+ New</strong> to create your first challenge.</div>
+            <div className="challenge-list-empty">Click <strong>+ New challenge</strong> to create your first challenge.</div>
           )}
           {challenges.map((c, idx) => (
             <div
               key={c.id}
-              className={`challenge-list-item ${c.id === editingChallengeId ? 'active' : ''}`}
+              className={`challenge-list-item ${c.id === editing?.id ? 'active' : ''}`}
               onClick={() => dispatch({ type: 'CH_SET_EDITING_CHALLENGE', id: c.id })}
             >
               <span className="challenge-list-name">{c.name}</span>
-              <span className="challenges-mode-tag">{c.mode}</span>
               <button
                 title="Move up"
                 className="challenge-list-btn"
@@ -77,15 +178,35 @@ export default function ChallengeEditor({
               <button
                 title="Delete this challenge"
                 className="challenge-list-btn danger"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Delete "${c.name}"?`)) dispatch({ type: 'CH_DELETE', id: c.id });
+                  const ok = await confirm({
+                    message: `Delete "${c.name}"?`,
+                    confirmLabel: 'Delete',
+                    variant: 'danger',
+                  });
+                  if (ok) dispatch({ type: 'CH_DELETE', id: c.id });
                 }}
               >✕</button>
             </div>
           ))}
+          <button
+            className="header-btn challenge-list-new"
+            title="Add a new challenge"
+            onClick={() => dispatch({ type: 'CH_NEW' })}
+          >+ New challenge</button>
+          <span className="ch-file-guid">
+            File GUID: <code title="Stable per-book identifier used by cloud-save">{challengeFileGuid ? challengeFileGuid.slice(0, 8) + '…' : '(none yet)'}</code>
+            <button
+              className="header-btn"
+              title="Mint a new GUID (orphans previously-submitted results)"
+              onClick={regenerateGuid}
+              style={{ marginLeft: 6 }}
+            >🔄</button>
+          </span>
         </div>
 
+        {modal}
         {editing && (
           <div className="challenge-edit-form">
             <div className="challenge-edit-row">
@@ -98,8 +219,6 @@ export default function ChallengeEditor({
                 onBlur={submitRename}
                 onKeyDown={e => { if (e.key === 'Enter') submitRename(); }}
               />
-            </div>
-            <div className="challenge-edit-row">
               <label>Mode:</label>
               <select
                 value={editing.mode}
@@ -110,39 +229,91 @@ export default function ChallengeEditor({
                 <option value="blocks">Blocks</option>
                 <option value="python">Python</option>
               </select>
-            </div>
-            <div className="challenge-edit-row">
-              <label>Editing:</label>
-              <div className="challenge-view-tabs">
-                <button
-                  className={`view-tab ${editingWorldView === 'initial' ? 'active' : ''}`}
-                  onClick={() => dispatch({ type: 'CH_SET_VIEW', view: 'initial' })}
-                >Initial world</button>
-                <button
-                  className={`view-tab ${editingWorldView === 'target' ? 'active' : ''}`}
-                  onClick={() => dispatch({ type: 'CH_SET_VIEW', view: 'target' })}
-                >Target world</button>
-              </div>
-              <button
-                className="header-btn"
-                title={`Copy the ${editingWorldView === 'initial' ? 'target' : 'initial'} world onto this one`}
-                onClick={() => {
-                  const from = editingWorldView === 'initial' ? 'target' : 'initial';
-                  if (window.confirm(`Overwrite this world with the ${from} world?`)) {
-                    dispatch({ type: 'CH_COPY_WORLD', from });
-                  }
-                }}
-              >Copy from {editingWorldView === 'initial' ? 'target' : 'initial'}</button>
+              <label className="challenge-allow-mode" title="Lets the student switch programming mode while taking this challenge. Off by default — the student is locked to the mode you set.">
+                <input
+                  type="checkbox"
+                  checked={!!editing.allowModeChange}
+                  onChange={e => dispatch({ type: 'CH_SET_ALLOW_MODE_CHANGE', id: editing.id, allow: e.target.checked })}
+                />
+                Allow mode change
+              </label>
+              <label className="challenge-allow-mode" title="When ticked, the student is capped on how much they can add beyond the starter. Configure the cap below.">
+                <input
+                  type="checkbox"
+                  checked={!!editing.limits?.enforced}
+                  onChange={e => dispatch({ type: 'CH_SET_LIMITS', id: editing.id, limits: { enforced: e.target.checked } })}
+                />
+                Enforce code limit
+              </label>
+              <label className="challenge-allow-mode" title="When ticked, Kara's final facing direction is not checked — only her position and the cell contents.">
+                <input
+                  type="checkbox"
+                  checked={!!editing.ignoreOrientation}
+                  onChange={e => dispatch({ type: 'CH_SET_IGNORE_ORIENTATION', id: editing.id, ignore: e.target.checked })}
+                />
+                Ignore Kara's final orientation
+              </label>
             </div>
             <p className="challenge-edit-help">
-              Paint the {editingWorldView} world on the left, and write the
-              starter <strong>{editing.mode}</strong> program on the right. Switch tabs to edit
-              the other world. Changes auto-save when you switch tabs,
-              switch challenges, or exit the editor.
+              Paint each checkpoint world on the left; write the <strong>{editing.mode}</strong>
+              {' '}starter on the right. The program must pass through every checkpoint to reach <em>Target</em>.
             </p>
+            {editing.limits?.enforced && (
+              <ChallengeLimitsEditor challenge={editing} appMode={appMode} dispatch={dispatch} />
+            )}
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+// Per-mode caps on how much code the student can add beyond the
+// starter. Rendered only when `editing.limits.enforced` is true.
+// Shows only the field(s) for the editor's CURRENT app mode — to
+// configure another mode the teacher switches the app mode first.
+function ChallengeLimitsEditor({ challenge, appMode, dispatch }) {
+  const lim = challenge.limits || {};
+  const onNum = (mode, field) => (e) => {
+    const raw = e.target.value.trim();
+    const val = raw === '' ? 0 : Math.max(0, Math.floor(Number(raw)));
+    if (!Number.isFinite(val)) return;
+    dispatch({ type: 'CH_SET_LIMITS', id: challenge.id, limits: { [mode]: { [field]: val } } });
+  };
+  return (
+    <div className="challenge-limits-editor challenge-limits-row">
+      <span className="challenge-limits-label">Code limit of</span>
+      {appMode === 'blocks' && (
+        <>
+          <label>extra blocks
+            <input type="number" min="0" value={lim.blocks?.added ?? 0}
+              onChange={onNum('blocks', 'added')} style={{ width: 60 }} />
+          </label>
+          <span className="cl-hint">(beyond the starter)</span>
+        </>
+      )}
+      {appMode === 'fsm' && (
+        <>
+          <label>extra states
+            <input type="number" min="0" value={lim.fsm?.states ?? 0}
+              onChange={onNum('fsm', 'states')} style={{ width: 60 }} />
+          </label>
+          <label>extra transitions
+            <input type="number" min="0" value={lim.fsm?.transitions ?? 0}
+              onChange={onNum('fsm', 'transitions')} style={{ width: 60 }} />
+          </label>
+          <span className="cl-hint">(beyond the starter)</span>
+        </>
+      )}
+      {appMode === 'python' && (
+        <>
+          <label>extra tokens
+            <input type="number" min="0" value={lim.python?.tokens ?? 0}
+              onChange={onNum('python', 'tokens')} style={{ width: 60 }} />
+          </label>
+          <span className="cl-hint">(keywords / identifiers / literals / operators beyond the starter)</span>
+        </>
+      )}
     </div>
   );
 }

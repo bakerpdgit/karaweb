@@ -1,3 +1,5 @@
+import { newGuid } from './utils/guid.js';
+
 // ── Direction helpers ────────────────────────────────────────────────────────
 
 export const DIRECTIONS = ['right', 'down', 'left', 'up'];
@@ -304,10 +306,10 @@ export { STATE_R };
 export function buildSaveData(opts) {
   const {
     world, fsm, appMode, blocklyState, pythonCode, pythonFontSize, name,
-    challenges, challengeWork,
+    challenges, challengeWork, cloudSave, challengeFileGuid,
   } = opts;
   const base = {
-    karaWebVersion: 4,
+    karaWebVersion: 5,
     appMode: (appMode === 'blocks' || appMode === 'python') ? appMode : 'fsm',
     name: name || 'KaraWebWorld',
     savedAt: new Date().toISOString(),
@@ -318,6 +320,9 @@ export function buildSaveData(opts) {
       kara: world.kara,
     },
   };
+  if (challengeFileGuid) {
+    base.challengeFileGuid = challengeFileGuid;
+  }
   if (appMode === 'blocks') {
     base.blocks = { blocklyState: blocklyState ?? null };
   } else if (appMode === 'python') {
@@ -332,6 +337,40 @@ export function buildSaveData(opts) {
   if (challenges?.length || Object.keys(challengeWork ?? {}).length) {
     base.challenges    = challenges ?? [];
     base.challengeWork = challengeWork ?? {};
+  }
+  if (cloudSave && cloudSave.apiBaseUrl && cloudSave.publicKeyJwk) {
+    // Cloud-save block must never include the private key or student list.
+    // For google-drive (v3) we identify the book by challengeFileGuid.
+    // For codehooks (v2) we identify the class by classCode.
+    const method = cloudSave.method === 'google-drive' ? 'google-drive' : 'codehooks';
+    if (method === 'google-drive') {
+      const guid = cloudSave.challengeFileGuid || challengeFileGuid;
+      if (guid) {
+        base.cloudSave = {
+          schemaVersion: 3,
+          method: 'google-drive',
+          apiBaseUrl: cloudSave.apiBaseUrl,
+          challengeFileGuid: guid,
+          publicKeyJwk: cloudSave.publicKeyJwk,
+        };
+      }
+    } else {
+      // codehooks branch: no longer scoped by classCode — the
+      // backend identifies the teacher by publicKey fingerprint.
+      const guid = cloudSave.challengeFileGuid || challengeFileGuid;
+      if (guid) {
+        base.cloudSave = {
+          schemaVersion: 3,
+          method: 'codehooks',
+          apiBaseUrl: cloudSave.apiBaseUrl,
+          challengeFileGuid: guid,
+          publicKeyJwk: cloudSave.publicKeyJwk,
+        };
+      }
+    }
+    if (base.cloudSave && cloudSave.turnstileSiteKey) {
+      base.cloudSave.turnstileSiteKey = cloudSave.turnstileSiteKey;
+    }
   }
   return base;
 }
@@ -390,11 +429,101 @@ export function parseSaveData(raw) {
   const pythonFontSize = (raw.karaWebVersion >= 3) ? (raw.python?.fontSize ?? null) : null;
 
   // Challenges are v4+.
-  const challenges     = (raw.karaWebVersion >= 4) ? (raw.challenges ?? []) : [];
+  const rawChallenges  = (raw.karaWebVersion >= 4) ? (raw.challenges ?? []) : [];
   const challengeWork  = (raw.karaWebVersion >= 4) ? (raw.challengeWork ?? {}) : {};
+
+  // v5 added `guid` per challenge for stable cloud-side identity. Legacy
+  // challenges (loaded from v4 files) get guid = id so the existing
+  // challengeWork[id] map keeps linking. New challenges minted in code use
+  // a UUID for both fields.
+  const challenges = rawChallenges.map((c) => {
+    const withGuid = c.guid ? c : { ...c, guid: c.id };
+    // intermediateCheckpoints was added later; ensure every loaded
+    // challenge carries at least an empty array so the editor and the
+    // simulation can treat it uniformly.
+    const withCheckpoints = Array.isArray(withGuid.intermediateCheckpoints)
+      ? withGuid
+      : { ...withGuid, intermediateCheckpoints: [] };
+    // Solution feature added later; backfill the per-mode slot.
+    // `solutionEncrypted` used to be a separately-stored flag — it's
+    // now derived from `!solutionAvailableToStudents`. We discard
+    // any incoming `solutionEncrypted` field but reconcile the
+    // visibility flag against the actual data: if any populated
+    // mode entry starts with the envelope header, the data is
+    // encrypted, so visible must be false regardless of what the
+    // legacy flag said. This guards against files saved with stale
+    // pairs (or hand-edited JSON).
+    const solution = withCheckpoints.solution
+      && typeof withCheckpoints.solution === 'object'
+      ? withCheckpoints.solution
+      : { fsm: null, blocks: null, python: '' };
+    const ENVELOPE_HEADER = 'KaraWeb Cloud Save';
+    const anyEnvelope = ['fsm', 'blocks', 'python'].some(m =>
+      typeof solution[m] === 'string' && solution[m].startsWith(ENVELOPE_HEADER));
+    const visibleFromFlag = !!withCheckpoints.solutionAvailableToStudents;
+    const visible = anyEnvelope ? false : visibleFromFlag;
+    // Per-mode "max code size" caps for the student. Backfilled
+    // to disabled so old challenges keep working.
+    const rawLimits = withCheckpoints.limits || {};
+    const limits = {
+      enforced: !!rawLimits.enforced,
+      blocks: { added:       Number(rawLimits.blocks?.added       ?? 0) || 0 },
+      fsm:    { states:      Number(rawLimits.fsm?.states         ?? 0) || 0,
+                transitions: Number(rawLimits.fsm?.transitions    ?? 0) || 0 },
+      python: { tokens:      Number(rawLimits.python?.tokens      ?? 0) || 0 },
+    };
+    return {
+      ...withCheckpoints,
+      solution,
+      solutionAvailableToStudents: visible,
+      noCheckTarget: !!withCheckpoints.noCheckTarget,
+      ignoreOrientation: !!withCheckpoints.ignoreOrientation,
+      limits,
+    };
+  });
+
+  // v5 added the optional cloudSave block. Only honour it if it looks valid.
+  // schemaVersion 1: codehooks-only (no `method`, no turnstileSiteKey).
+  // schemaVersion 2: adds `method` + optional `turnstileSiteKey`.
+  // schemaVersion 3: google-drive flavour, identifies the book by
+  // `challengeFileGuid` instead of `classCode`. Per-teacher script.
+  let cloudSave = null;
+  if (raw.karaWebVersion >= 5 && raw.cloudSave) {
+    const c = raw.cloudSave;
+    if (c.apiBaseUrl && c.publicKeyJwk) {
+      const method = c.method === 'google-drive' ? 'google-drive' : 'codehooks';
+      if (method === 'google-drive' && c.challengeFileGuid) {
+        cloudSave = {
+          schemaVersion: c.schemaVersion ?? 3,
+          method: 'google-drive',
+          apiBaseUrl: String(c.apiBaseUrl),
+          challengeFileGuid: String(c.challengeFileGuid),
+          publicKeyJwk: c.publicKeyJwk,
+        };
+      } else if (method === 'codehooks' && c.challengeFileGuid) {
+        cloudSave = {
+          schemaVersion: c.schemaVersion ?? 3,
+          method: 'codehooks',
+          challengeFileGuid: String(c.challengeFileGuid),
+          apiBaseUrl: String(c.apiBaseUrl),
+          publicKeyJwk: c.publicKeyJwk,
+        };
+      }
+      if (cloudSave && c.turnstileSiteKey) {
+        cloudSave.turnstileSiteKey = String(c.turnstileSiteKey);
+      }
+    }
+  }
+
+  // Top-level challengeFileGuid (v5+). If the file doesn't carry one we
+  // mint a fresh one on load so the in-memory project has stable identity.
+  const challengeFileGuid =
+    (raw.karaWebVersion >= 5 && raw.challengeFileGuid)
+      ? String(raw.challengeFileGuid)
+      : (cloudSave?.challengeFileGuid || '');
 
   return {
     world, fsm, appMode, blocklyState, pythonCode, pythonFontSize,
-    challenges, challengeWork,
+    challenges, challengeWork, cloudSave, challengeFileGuid,
   };
 }

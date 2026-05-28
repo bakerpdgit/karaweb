@@ -1,0 +1,34 @@
+# Private keys
+privatekey.txt
+*.pem
+*.key
+
+# Local-only frontend config overrides, if you create one manually.
+# The live `codehooks_config.json` is public frontend config and should be committed.
+codehooks_config.local.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node modules (if used for Cloud Functions)
+node_modules/
+npm-debug.log
+
+# Build artifacts
+dist/
+build/
+*.min.js
+.unitester-http*.log
+
+# Agent files
+.claude

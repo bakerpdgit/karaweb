@@ -4,8 +4,12 @@ export default function ChallengesMenu({
   challenges,
   currentChallengeId,
   challengeEditor,
+  scratchpadChallenge = null,
   disabled,
   dispatch,
+  onRequestExit,
+  onRequestEnterEditor,
+  gated = false,
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -26,20 +30,30 @@ export default function ChallengesMenu({
 
   const enterEditor = () => {
     setOpen(false);
-    dispatch({ type: 'CH_ENTER_EDITOR' });
+    if (onRequestEnterEditor) onRequestEnterEditor();
+    else                       dispatch({ type: 'CH_ENTER_EDITOR' });
   };
 
   const exit = () => {
     setOpen(false);
-    if (challengeEditor) dispatch({ type: 'CH_EXIT_EDITOR' });
-    else                 dispatch({ type: 'CH_EXIT_PLAY' });
+    if (challengeEditor) {
+      dispatch({ type: 'CH_EXIT_EDITOR' });
+    } else if (onRequestExit) {
+      onRequestExit();
+    } else {
+      dispatch({ type: 'CH_EXIT_PLAY' });
+    }
   };
 
+  const activeName = currentChallengeId
+    ? (scratchpadChallenge?.id === currentChallengeId
+        ? scratchpadChallenge.name
+        : (challenges.find(c => c.id === currentChallengeId)?.name ?? '?'))
+    : null;
   const label =
     challengeEditor ? '🎯 Editing challenges' :
-    currentChallengeId
-      ? `🎯 ${challenges.find(c => c.id === currentChallengeId)?.name ?? '?'}`
-      : '🎯 Challenges…';
+    activeName     ? `🎯 ${activeName}` :
+                     '🎯 Challenges…';
 
   return (
     <div className="panels-menu-wrap" ref={wrapRef}>
@@ -68,12 +82,12 @@ export default function ChallengesMenu({
           ))}
           {(currentChallengeId || challengeEditor) && (
             <button className="panels-menu-item" onClick={exit}>
-              {challengeEditor ? '⛔ Exit editor' : '⛔ Exit challenge'}
+              {challengeEditor ? '⛔ Exit editor' : `⛔ Exit challenge${gated ? ' 🔒' : ''}`}
             </button>
           )}
           <hr className="challenges-menu-sep" />
           <button className="panels-menu-item" onClick={enterEditor}>
-            ✏️ Edit / manage challenges…
+            ✏️ Edit / manage challenges…{gated ? ' 🔒' : ''}
           </button>
         </div>
       )}

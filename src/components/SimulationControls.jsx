@@ -80,12 +80,16 @@ export default function SimulationControls({
       <div className="sim-speed">
         <label>
           Speed:
+          {/* The underlying state is `speed` in ms-per-step (lower = faster).
+              The slider is inverted so dragging right speeds Kara up:
+              displayValue = MIN + MAX - speed. */}
           <input
             type="range" min="100" max="2000" step="50"
-            value={speed}
-            onChange={e => dispatch({ type: 'SIM_SET_SPEED', speed: +e.target.value })}
+            value={2100 - speed}
+            onChange={e => dispatch({ type: 'SIM_SET_SPEED', speed: 2100 - +e.target.value })}
+            title="Drag right to speed up Kara"
           />
-          <span>{speed} ms</span>
+          <span>{speed} ms / step</span>
         </label>
       </div>
 

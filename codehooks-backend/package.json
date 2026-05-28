@@ -1,0 +1,19 @@
+{
+  "name": "karaweb-codehooks-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "link": "coho init --empty",
+    "deploy": "coho deploy",
+    "info": "coho info --examples",
+    "logs": "coho logs",
+    "check": "node --check index.js"
+  },
+  "dependencies": {
+    "codehooks-js": "^1.2.20"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

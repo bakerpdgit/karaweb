@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create Test</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.css" integrity="sha384-UA8juhPf75SzzAMA/4fo3yOU7sBJ0om7SCD2GHq0fZqZco6tr1UCV7nUbk9J90JM" crossorigin="anonymous">
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="site-nav-inner">
+      <div class="admin-nav-icons">
+        <a class="admin-nav-icon" href="index.html" title="Home">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.1L1 12h3v10h7v-7h2v7h7V12h3z"/></svg>
+          <span class="admin-nav-label">Home</span>
+        </a>
+        <a class="admin-nav-icon" href="admin.html" title="Admin">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.65 10A6 6 0 1 0 10 17h10l2-2-2-2h-2l-2-2zM7 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+          <span class="admin-nav-label">Admin</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page-shell">
+    <header class="page-heading">
+      <div>
+        <h1>Create a Test</h1>
+        <p>Add image or text questions, mark the correct option, then download the encoded test file.</p>
+      </div>
+      <div class="button-row page-actions">
+        <button id="openTestButton" class="icon-button" type="button" title="Open existing test file" aria-label="Open existing test file">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v1"></path>
+            <path d="M3 10h18l-2 8a2 2 0 0 1-2 1.5H7A2 2 0 0 1 5 18Z"></path>
+          </svg>
+        </button>
+        <input id="openTestFile" class="upload-input" type="file" accept=".txt,text/plain">
+      </div>
+    </header>
+
+    <div class="teacher-grid">
+      <aside class="panel side-panel">
+        <div class="mode-tabs" role="tablist" aria-label="Image import method">
+          <button id="zipMode" class="mode-tab is-active" type="button">Create from ZIP</button>
+          <button id="pasteMode" class="mode-tab" type="button">Paste or upload images</button>
+        </div>
+        <button id="addTextQuestionButton" class="secondary-button full-width-button" type="button">Add Text Question</button>
+
+        <section id="zipPanel">
+          <div class="field">
+            <label for="zipUpload">ZIP file</label>
+            <input id="zipUpload" class="text-input" type="file" accept=".zip,application/zip">
+          </div>
+        </section>
+
+        <section id="pastePanel" hidden>
+          <div id="pasteBox" class="drop-area" tabindex="0">
+            <div>
+              <strong>Image paste area</strong>
+              <div>Focus here before pressing Ctrl+V</div>
+            </div>
+          </div>
+          <div class="icon-actions" aria-label="Image actions">
+            <button id="pasteImageButton" class="icon-button" type="button" title="Paste image from clipboard" aria-label="Paste image from clipboard">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 4h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1V6a2 2 0 0 1 2-2Z"></path>
+                <path d="M9 4a3 3 0 0 0 6 0"></path>
+                <path d="M8 11h8"></path>
+                <path d="M8 15h5"></path>
+              </svg>
+            </button>
+            <button id="browseImageButton" class="icon-button" type="button" title="Browse for images" aria-label="Browse for images">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path>
+                <path d="M3 11h18"></path>
+              </svg>
+            </button>
+          </div>
+          <input id="imageUpload" class="upload-input" type="file" accept="image/*" multiple>
+        </section>
+
+        <p id="importStatus" class="status-line" aria-live="polite"></p>
+        <div id="imageList" class="image-list" aria-live="polite"></div>
+      </aside>
+
+      <section class="panel work-panel">
+        <div id="emptyState">
+          <h2 class="panel-title">No Questions Added</h2>
+          <p class="status-line">Upload a ZIP of images or paste question images to begin.</p>
+        </div>
+
+        <div id="reviewSection" hidden>
+          <div class="review-layout">
+            <div class="review-image-panel">
+              <div id="wizardBar" class="wizard-bar" hidden></div>
+              <div id="imageEditor" class="image-editor">
+                <img id="reviewImage" alt="Question preview" draggable="false">
+                <div id="editOverlay" class="image-edit-overlay" hidden></div>
+              </div>
+              <div id="questionMarkdownMount" hidden></div>
+              <div id="questionOptionsPreview" class="designer-options-preview"></div>
+              <p id="editorHint" class="editor-hint"></p>
+            </div>
+            <aside class="review-controls">
+              <p id="stepIndicator" class="step-indicator"></p>
+              <div class="button-row edit-tool-row">
+                <button id="questionTextTool" class="secondary-button" type="button">Edit Text</button>
+                <button id="resizeTool" class="secondary-button" type="button">Resize</button>
+                <button id="cropTool" class="secondary-button" type="button">Crop</button>
+              </div>
+              <div class="compact-field">
+                <label for="optionCount">Number of options</label>
+                <select id="optionCount" class="select-input"></select>
+              </div>
+              <div class="compact-field">
+                <label>Correct answer</label>
+                <div id="correctAnswerChoices" class="correct-answer-choices"></div>
+              </div>
+              <div class="compact-field">
+                <label>Option image snippets</label>
+                <button id="optionWizard" class="secondary-button full-width-button" type="button">Draw Option Images Wizard</button>
+                <div id="optionSnippetList" class="option-snippet-list"></div>
+              </div>
+              <div class="compact-field">
+                <label class="checkbox-row">
+                  <input id="showLetterPrefixes" type="checkbox">
+                  Show letter prefixes (A, B, C...)
+                </label>
+              </div>
+              <div class="compact-field">
+                <button id="explanationButton" class="secondary-button full-width-button" type="button">Add Explanation</button>
+              </div>
+              <div class="button-row">
+                <button id="moveQuestionUp" class="secondary-button" type="button">▲ Up</button>
+                <button id="moveQuestionDown" class="secondary-button" type="button">Down ▼</button>
+              </div>
+              <div class="button-row">
+                <button id="previousQuestion" class="secondary-button" type="button">Previous</button>
+                <button id="nextQuestion" class="secondary-button" type="button">Next</button>
+                <button id="removeQuestion" class="ghost-button" type="button">Remove</button>
+              </div>
+            </aside>
+          </div>
+
+          <hr>
+
+          <form id="downloadForm">
+            <div class="field">
+              <label for="testTitle">Test title</label>
+              <input id="testTitle" class="text-input" required>
+            </div>
+            <div class="field">
+              <label for="activityMode">Student activity mode</label>
+              <select id="activityMode" class="select-input">
+                <option value="test">Test mode</option>
+                <option value="review">Review mode</option>
+              </select>
+            </div>
+            <div id="guideTimeField" class="field">
+              <label for="guideTimeMinutes">Guide time allowed <span class="field-hint">(minutes)</span></label>
+              <input id="guideTimeMinutes" class="text-input" type="number" min="1" step="1" inputmode="numeric">
+            </div>
+            <div id="timerEnforcementField" class="field">
+              <label for="timerEnforcement">Timer enforcement</label>
+              <select id="timerEnforcement" class="select-input">
+                <option value="enforce-test-informational-review">Enforce in test mode, informational in review (default)</option>
+                <option value="informational-only">Informational only (never enforce)</option>
+                <option value="enforce-always">Enforce always</option>
+                <option value="disabled">Disabled (never show timer)</option>
+              </select>
+            </div>
+            <div id="extraTimeOptionField" class="field">
+              <label for="extraTimeOption">Extra time option</label>
+              <select id="extraTimeOption" class="select-input">
+                <option value="allow-25-percent">Allow 25% extra time (default)</option>
+                <option value="allow-10-percent">Allow 10% extra time</option>
+                <option value="disallow">Disallow extra time</option>
+              </select>
+            </div>
+            <label class="checkbox-row field">
+              <input id="openTestMode" type="checkbox"> Create as next open numeric test <span class="field-hint">(tests named 001, 002, etc. appear in the student browse list)</span>
+            </label>
+            <div class="field">
+              <label for="instructions">First page instructions</label>
+              <textarea id="instructions" class="textarea markdown-source"></textarea>
+              <div id="instructionsEditorMount"></div>
+            </div>
+            <div class="field">
+              <label for="endInstructions">End of test instructions</label>
+              <div class="file-action-field">
+                <input id="endInstructions" type="hidden">
+                <div id="endInstructionsPreview" class="readonly-markdown-preview markdown-content"></div>
+                <button id="editEndInstructions" class="secondary-button icon-text-button" type="button" title="Edit end instructions as Markdown" aria-label="Edit end instructions as Markdown">T</button>
+              </div>
+              <p class="field-hint">Shown after a student finishes a test or review activity.</p>
+            </div>
+            <div class="button-row">
+              <button class="primary-button" type="submit">Download Test File</button>
+              <button id="clearAll" class="secondary-button" type="button">Clear</button>
+            </div>
+            <p id="downloadStatus" class="status-line" aria-live="polite"></p>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="editConfirmModal" class="modal-backdrop" hidden>
+    <section class="modal-panel edit-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="editConfirmTitle">
+      <header class="modal-heading">
+        <h2 id="editConfirmTitle">Confirm Image Edit</h2>
+      </header>
+      <div id="editConfirmMessage" class="modal-body"></div>
+      <div class="modal-actions">
+        <button id="editConfirmCancel" class="secondary-button" type="button">Cancel</button>
+        <button id="editConfirmYes" class="primary-button" type="button">Yes</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="testKeyModal" class="modal-backdrop" hidden>
+    <section class="modal-panel edit-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="testKeyTitle">
+      <header class="modal-heading">
+        <h2 id="testKeyTitle">Test Key Required</h2>
+      </header>
+      <div class="modal-body">
+        <p>The filename-based key did not decrypt this test. Enter the key used when this file was created.</p>
+        <div class="field">
+          <label for="testKeyInput">Decryption key</label>
+          <input id="testKeyInput" class="text-input" autocomplete="off">
+        </div>
+        <p id="testKeyStatus" class="status-line" aria-live="polite"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="testKeyCancel" class="secondary-button" type="button">Cancel</button>
+        <button id="testKeyOpen" class="primary-button" type="button">Open Test</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="creatorKeyModal" class="modal-backdrop" hidden>
+    <section class="modal-panel edit-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="creatorKeyTitle">
+      <header class="modal-heading">
+        <h2 id="creatorKeyTitle">Teacher Key Required</h2>
+      </header>
+      <div class="modal-body">
+        <p id="creatorKeyMessage">Choose keydetails.txt so answers and explanations can be protected.</p>
+        <div class="field">
+          <label for="creatorKeyFile">keydetails.txt</label>
+          <input id="creatorKeyFile" class="text-input" type="file" accept=".txt,text/plain,application/json">
+        </div>
+        <label class="checkbox-row"><input id="retainCreatorKey" type="checkbox"> Retain this key in this browser</label>
+        <p id="creatorKeyStatus" class="status-line" aria-live="polite"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="creatorKeyCancel" class="secondary-button" type="button">Cancel</button>
+        <button id="creatorKeyUnlock" class="primary-button" type="button">Use Key</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="explanationModal" class="modal-backdrop" hidden>
+    <section class="modal-panel markdown-modal" role="dialog" aria-modal="true" aria-labelledby="explanationTitle">
+      <header class="modal-heading">
+        <h2 id="explanationTitle">Question Explanation</h2>
+        <button id="explanationCloseTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div class="modal-body">
+        <textarea id="explanationMarkdown" class="textarea markdown-source"></textarea>
+        <div id="explanationEditorMount"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="deleteExplanation" class="ghost-button" type="button">Remove Explanation</button>
+        <button id="cancelExplanation" class="secondary-button" type="button">Cancel</button>
+        <button id="saveExplanation" class="primary-button" type="button">Save Explanation</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="questionTextModal" class="modal-backdrop" hidden>
+    <section class="modal-panel markdown-modal" role="dialog" aria-modal="true" aria-labelledby="questionTextTitle">
+      <header class="modal-heading">
+        <h2 id="questionTextTitle">Question Text</h2>
+        <button id="questionTextCloseTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div class="modal-body">
+        <textarea id="questionMarkdown" class="textarea markdown-source"></textarea>
+        <div id="questionEditorMount"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="deleteQuestionText" class="ghost-button" type="button">Remove Text</button>
+        <button id="cancelQuestionText" class="secondary-button" type="button">Cancel</button>
+        <button id="saveQuestionText" class="primary-button" type="button">Save Question Text</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="optionTextModal" class="modal-backdrop" hidden>
+    <section class="modal-panel markdown-modal" role="dialog" aria-modal="true" aria-labelledby="optionTextTitle">
+      <header class="modal-heading">
+        <h2 id="optionTextTitle">Option Text</h2>
+        <button id="optionTextCloseTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div class="modal-body">
+        <textarea id="optionMarkdown" class="textarea markdown-source"></textarea>
+        <div id="optionEditorMount"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="deleteOptionText" class="ghost-button" type="button">Remove Option Text</button>
+        <button id="cancelOptionText" class="secondary-button" type="button">Cancel</button>
+        <button id="saveOptionText" class="primary-button" type="button">Save Option Text</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="endInstructionsModal" class="modal-backdrop" hidden>
+    <section class="modal-panel markdown-modal" role="dialog" aria-modal="true" aria-labelledby="endInstructionsTitle">
+      <header class="modal-heading">
+        <h2 id="endInstructionsTitle">End of Test Instructions</h2>
+        <button id="endInstructionsCloseTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div class="modal-body">
+        <textarea id="endInstructionsMarkdown" class="textarea markdown-source"></textarea>
+        <div id="endInstructionsEditorMount"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="resetEndInstructions" class="ghost-button" type="button">Reset Default</button>
+        <button id="cancelEndInstructions" class="secondary-button" type="button">Cancel</button>
+        <button id="saveEndInstructions" class="primary-button" type="button">Save Instructions</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="markdownImageModal" class="modal-backdrop" hidden>
+    <section class="modal-panel markdown-image-panel" role="dialog" aria-modal="true" aria-labelledby="markdownImageTitle">
+      <header class="modal-heading">
+        <h2 id="markdownImageTitle">Markdown Image</h2>
+        <button id="markdownImageCloseTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div class="modal-body">
+        <div id="markdownImagePasteBox" class="drop-area compact-drop" tabindex="0">
+          <div>
+            <strong>Paste image area</strong>
+            <div>Paste, drop, or browse for an image.</div>
+          </div>
+        </div>
+        <div class="icon-actions" aria-label="Markdown image actions">
+          <button id="markdownPasteImageButton" class="icon-button" type="button" title="Paste image from clipboard" aria-label="Paste image from clipboard">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 4h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1V6a2 2 0 0 1 2-2Z"></path>
+              <path d="M9 4a3 3 0 0 0 6 0"></path>
+              <path d="M8 11h8"></path>
+              <path d="M8 15h5"></path>
+            </svg>
+          </button>
+          <button id="markdownBrowseImageButton" class="icon-button" type="button" title="Browse for image" aria-label="Browse for image">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path>
+              <path d="M3 11h18"></path>
+            </svg>
+          </button>
+        </div>
+        <input id="markdownImageFile" class="upload-input" type="file" accept="image/*">
+        <div id="markdownImageEditor" class="markdown-image-editor" hidden>
+          <div class="field-row">
+            <div class="field">
+              <label for="markdownImageAlt">Alt text</label>
+              <input id="markdownImageAlt" class="text-input" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="markdownImageWidth">Resize width</label>
+              <input id="markdownImageWidth" class="text-input" type="number" min="40" max="2400" step="10">
+            </div>
+          </div>
+          <div class="button-row edit-tool-row">
+            <button id="markdownCropImageButton" class="secondary-button" type="button">Crop</button>
+            <button id="markdownApplyCropButton" class="secondary-button" type="button" disabled>Apply Crop</button>
+          </div>
+          <div class="markdown-image-stage">
+            <img id="markdownImagePreview" alt="Markdown image preview" draggable="false">
+            <div id="markdownImageOverlay" class="image-edit-overlay" hidden></div>
+          </div>
+          <p id="markdownImageStatus" class="status-line" aria-live="polite"></p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelMarkdownImage" class="secondary-button" type="button">Cancel</button>
+        <button id="insertMarkdownImage" class="primary-button" type="button">Insert Image</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="linkModal" class="modal-backdrop" hidden>
+    <section class="modal-panel edit-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="linkTitle">
+      <header class="modal-heading">
+        <h2 id="linkTitle">Link</h2>
+      </header>
+      <div class="modal-body">
+        <div class="field">
+          <label for="linkText">Link text</label>
+          <input id="linkText" class="text-input" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="linkUrl">URL</label>
+          <input id="linkUrl" class="text-input" autocomplete="off" placeholder="https://example.com">
+        </div>
+        <p id="linkStatus" class="status-line" aria-live="polite"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelLink" class="secondary-button" type="button">Cancel</button>
+        <button id="insertLink" class="primary-button" type="button">Insert Link</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="equationModal" class="modal-backdrop" hidden>
+    <section class="modal-panel edit-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="equationTitle">
+      <header class="modal-heading">
+        <h2 id="equationTitle">Equation</h2>
+      </header>
+      <div class="modal-body">
+        <div class="field">
+          <label for="equationInput">LaTeX</label>
+          <textarea id="equationInput" class="textarea equation-input"></textarea>
+        </div>
+        <label class="checkbox-row"><input id="equationDisplayMode" type="checkbox"> Display equation on its own line</label>
+        <div id="equationPreview" class="equation-preview markdown-content"></div>
+        <p id="equationStatus" class="status-line" aria-live="polite"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelEquation" class="secondary-button" type="button">Cancel</button>
+        <button id="insertEquation" class="primary-button" type="button">Insert Equation</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.js" integrity="sha384-Tt7wBxLKwSzFVRET4O4U9H6v8MNaQ/CjN2FMP4xFm0ErrFu6aNqoonRVW5W40iGI" crossorigin="anonymous"></script>
+  <script src="shared.js"></script>
+  <script src="create-test.js"></script>
+</body>
+</html>

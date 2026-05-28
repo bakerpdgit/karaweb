@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import {
+  setWelcomeShown, getWelcomeShown,
+  setMainWelcomeShown, getMainWelcomeShown,
+} from '../utils/localStore.js';
 
 const MODE_OPTIONS = [
   { value: 'fsm',    title: 'Finite State Machine',
@@ -11,12 +15,49 @@ const MODE_OPTIONS = [
 
 export default function SettingsModal({
   appMode, dirtyFsm, dirtyBlocks, dirtyPython, dispatch, pythonRunner, onClose,
+  activeChallenge = null,
+  onShowMainWelcome, onShowEditorWelcome,
 }) {
   const [pendingMode, setPendingMode] = useState(appMode);
+  // Local mirrors of the two "show getting-started" preferences so the
+  // checkboxes flip immediately. Ticking either also re-pops the
+  // corresponding slideshow on the spot, in case the user wants to
+  // see it now.
+  const [mainOn,   setMainOn]   = useState(() => !getMainWelcomeShown());
+  const [editorOn, setEditorOn] = useState(() => !getWelcomeShown());
+
+  const onToggleMain = (e) => {
+    const want = e.target.checked;
+    setMainOn(want);
+    if (want) {
+      setMainWelcomeShown(false);
+      onShowMainWelcome?.();
+      onClose();
+    } else {
+      setMainWelcomeShown(true);
+    }
+  };
+  const onToggleEditor = (e) => {
+    const want = e.target.checked;
+    setEditorOn(want);
+    if (want) {
+      setWelcomeShown(false);
+      onShowEditorWelcome?.();
+      onClose();
+    } else {
+      setWelcomeShown(true);
+    }
+  };
 
   const dirtyMap = { fsm: dirtyFsm, blocks: dirtyBlocks, python: dirtyPython };
   const switching = pendingMode !== appMode;
   const losing = switching && dirtyMap[appMode];
+
+  // When the student is taking a challenge, the mode is normally locked
+  // to whatever the teacher set (challenge.mode). Teachers can opt-in
+  // to letting the student switch via the challenge's allowModeChange
+  // flag.
+  const modeLocked = !!(activeChallenge && !activeChallenge.allowModeChange);
 
   const apply = () => {
     if (switching) dispatch({ type: 'SET_APP_MODE', mode: pendingMode });
@@ -43,11 +84,19 @@ export default function SettingsModal({
             mode is written to disk on save.
           </p>
 
+          {modeLocked && (
+            <div className="settings-warn">
+              🔒 This challenge is locked to <strong>{MODE_OPTIONS.find(o => o.value === activeChallenge.mode)?.title}</strong>.
+              The teacher hasn't allowed mode switching for this challenge.
+            </div>
+          )}
+
           {MODE_OPTIONS.map(opt => (
-            <label key={opt.value} className="settings-radio">
+            <label key={opt.value} className={`settings-radio ${modeLocked ? 'disabled' : ''}`}>
               <input
                 type="radio" name="appMode" value={opt.value}
                 checked={pendingMode === opt.value}
+                disabled={modeLocked}
                 onChange={() => setPendingMode(opt.value)}
               />
               <span>
@@ -71,15 +120,30 @@ export default function SettingsModal({
         <section className="settings-section">
           <div className="section-title">Python runtime</div>
           <p className="settings-blurb">
-            Hard-reset the pyodide environment if a program left it in a weird
-            state, or to free up installed packages. The runtime will then
-            re-initialise in the background.
+            Reset if the Python runtime becomes unstable.
           </p>
           <div>
             <button className="btn-secondary" onClick={resetPyodide}>
               Reset Pyodide environment
             </button>
           </div>
+        </section>
+
+        <hr className="about-divider" />
+
+        <section className="settings-section">
+          <div className="section-title">Help</div>
+          <p className="settings-blurb">
+            Ticking either box re-enables that slideshow and shows it now.
+          </p>
+          <label className="settings-checkbox">
+            <input type="checkbox" checked={mainOn} onChange={onToggleMain} />
+            <span>Show getting-started slideshow</span>
+          </label>
+          <label className="settings-checkbox">
+            <input type="checkbox" checked={editorOn} onChange={onToggleEditor} />
+            <span>Show challenge editor getting-started instructions</span>
+          </label>
         </section>
 
         <div className="modal-actions">

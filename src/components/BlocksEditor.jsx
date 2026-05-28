@@ -4,21 +4,34 @@ import 'blockly/blocks';
 import { toolboxJson } from '../python/blocks/toolbox.js';
 import { initBlocks } from '../python/blocks/pythonGenerator.js';
 import RunnerOutputPanel from './RunnerOutputPanel.jsx';
+import { countBlocks } from '../utils/codeLimits.js';
+import { useConfirmModal } from './ConfirmModal.jsx';
 
 // Initialise our custom block defs once at module load.
 initBlocks();
 
-export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner }) {
+export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, readOnly = false, blocksCap = null }) {
   const userRef = useRef(null);
   const userWorkspaceRef = useRef(null);
   const lastHighlightedRef = useRef(null);
+  // Limit-enforcement plumbing: keep `cap` fresh via ref so the
+  // change listener (captured at mount) reads the current value.
+  const blocksCapRef = useRef(blocksCap);
+  useEffect(() => { blocksCapRef.current = blocksCap; }, [blocksCap]);
+  const lastValidRef = useRef(null);
+  const { alert: showAlert, modal: alertModal } = useConfirmModal();
 
   // ── User workspace ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!userRef.current) return;
     const ws = Blockly.inject(userRef.current, {
-      toolbox: toolboxJson,
-      trashcan: true,
+      // In read-only mode we hide the toolbox so the user can't drag in
+      // new blocks; Blockly's own readOnly option also disables drag /
+      // mutate of existing blocks. We still allow zoom + scroll so the
+      // user can inspect.
+      readOnly,
+      toolbox: readOnly ? null : toolboxJson,
+      trashcan: !readOnly,
       zoom: { controls: true, wheel: false, startScale: 0.95 },
       grid: { spacing: 20, length: 3, colour: '#ccc', snap: true },
     });
@@ -31,27 +44,82 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner })
         console.warn('Failed to load blocks.blocklyState:', e);
       }
     }
-
-    let pending = false;
-    const listener = (event) => {
-      if (event.isUiEvent) return;
-      if (event.type === Blockly.Events.FINISHED_LOADING) return;
-      if (pending) return;
-      pending = true;
-      queueMicrotask(() => {
-        pending = false;
-        try {
-          const json = Blockly.serialization.workspaces.save(ws);
-          dispatch({ type: 'BLK_SET_STATE', blocklyState: json, markDirty: true });
-        } catch (e) {
-          console.warn('Failed to serialise workspace:', e);
+    // In read-only (solution view) mode there's no editing surface, so
+    // workspace pan / placement is just inspection. Reposition all top
+    // blocks so the bounding box starts near (10, 10) — otherwise the
+    // saved coords (potentially far down-right from the teacher's
+    // original layout) leave the reader scrolling.
+    if (readOnly && blocks.blocklyState) {
+      try {
+        const tops = ws.getTopBlocks(false);
+        if (tops.length > 0) {
+          let minX = Infinity, minY = Infinity;
+          for (const b of tops) {
+            const xy = b.getRelativeToSurfaceXY();
+            if (xy.x < minX) minX = xy.x;
+            if (xy.y < minY) minY = xy.y;
+          }
+          const dx = 10 - minX;
+          const dy = 10 - minY;
+          if (dx !== 0 || dy !== 0) {
+            for (const b of tops) b.moveBy(dx, dy);
+          }
+          ws.scrollbar?.set?.(0, 0);
         }
-      });
-    };
-    ws.addChangeListener(listener);
+      } catch (e) {
+        console.warn('Failed to reposition solution blocks:', e);
+      }
+    }
+    // Seed last-valid for the limit-revert path.
+    lastValidRef.current = blocks.blocklyState ?? null;
 
+    // No change-listener in read-only mode — even if Blockly's own
+    // gating misses something, we don't want spurious BLK_SET_STATE
+    // dispatches against the solution view.
+    if (!readOnly) {
+      let pending = false;
+      let reverting = false;
+      const listener = (event) => {
+        if (reverting) return;
+        if (event.isUiEvent) return;
+        if (event.type === Blockly.Events.FINISHED_LOADING) return;
+        if (pending) return;
+        pending = true;
+        queueMicrotask(() => {
+          pending = false;
+          try {
+            const json = Blockly.serialization.workspaces.save(ws);
+            const cap = blocksCapRef.current;
+            if (cap != null && countBlocks(json) > cap) {
+              // Restore the last valid workspace + tell the student.
+              reverting = true;
+              try {
+                ws.clear();
+                if (lastValidRef.current) {
+                  Blockly.serialization.workspaces.load(lastValidRef.current, ws);
+                }
+              } catch {}
+              queueMicrotask(() => { reverting = false; });
+              showAlert({
+                message: `You've reached the ${cap}-block limit for this challenge. Remove a block before adding more.`,
+              });
+              return;
+            }
+            lastValidRef.current = json;
+            dispatch({ type: 'BLK_SET_STATE', blocklyState: json, markDirty: true });
+          } catch (e) {
+            console.warn('Failed to serialise workspace:', e);
+          }
+        });
+      };
+      ws.addChangeListener(listener);
+      return () => {
+        ws.removeChangeListener(listener);
+        ws.dispose();
+        userWorkspaceRef.current = null;
+      };
+    }
     return () => {
-      ws.removeChangeListener(listener);
       ws.dispose();
       userWorkspaceRef.current = null;
     };
@@ -115,6 +183,7 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner })
     <div className="python-editor">
       <div ref={userRef} className="python-user-canvas" />
       <RunnerOutputPanel runner={runner} dispatch={dispatch} pythonRunner={pythonRunner} />
+      {alertModal}
     </div>
   );
 }

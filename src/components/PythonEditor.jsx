@@ -2,14 +2,21 @@ import React, { useMemo, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import RunnerOutputPanel from './RunnerOutputPanel.jsx';
 import { registerKaraIntellisense } from '../python/monacoKaraIntellisense.js';
+import { countPythonTokens } from '../utils/codeLimits.js';
+import { useConfirmModal } from './ConfirmModal.jsx';
 
 const FONT_SIZES = [10, 12, 13, 14, 16, 18, 20, 22, 24, 28, 32];
 
-export default function PythonEditor({ world, initWorld, python, runner, dispatch, pythonRunner }) {
+export default function PythonEditor({ world, initWorld, python, runner, dispatch, pythonRunner, readOnly = false, pythonTokensCap = null }) {
   const monacoRef = useRef(null);
   const editorRef = useRef(null);
   const currentDecorationsRef = useRef([]);
   const errorDecorationsRef = useRef([]);
+  const lastValidCodeRef = useRef(python.code ?? '');
+  const capRef = useRef(pythonTokensCap);
+  React.useEffect(() => { capRef.current = pythonTokensCap; }, [pythonTokensCap]);
+  const restoringRef = useRef(false);
+  const { alert: showAlert, modal: alertModal } = useConfirmModal();
 
   // Read-only init header — two lines the user can treat as already-present.
   // We use `initWorld` (frozen during a run) rather than the live `world` so
@@ -61,7 +68,29 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
   }, [python.errorLine]);
 
   const onEditorChange = (value) => {
-    dispatch({ type: 'PYC_SET_CODE', code: value ?? '', markDirty: true });
+    if (readOnly) return;
+    if (restoringRef.current) return;
+    const next = value ?? '';
+    const cap = capRef.current;
+    if (cap != null && countPythonTokens(next) > cap) {
+      // Over the token cap — restore the last valid code in the
+      // Monaco buffer and tell the student.
+      restoringRef.current = true;
+      try {
+        const editor = editorRef.current;
+        if (editor) editor.setValue(lastValidCodeRef.current);
+      } finally {
+        // Monaco's setValue fires another onChange synchronously;
+        // the restoringRef guard above short-circuits that one.
+        queueMicrotask(() => { restoringRef.current = false; });
+      }
+      showAlert({
+        message: `You've reached the ${cap}-token limit for this challenge. Remove some code before adding more.`,
+      });
+      return;
+    }
+    lastValidCodeRef.current = next;
+    dispatch({ type: 'PYC_SET_CODE', code: next, markDirty: true });
   };
 
   return (
@@ -123,11 +152,13 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
             wordWrap: 'on',
             scrollbar: { vertical: 'auto', horizontal: 'auto' },
             lineNumbers: 'on',
+            readOnly,
           }}
         />
       </div>
 
       <RunnerOutputPanel runner={runner} dispatch={dispatch} pythonRunner={pythonRunner} />
+      {alertModal}
     </div>
   );
 }

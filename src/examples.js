@@ -280,6 +280,46 @@ The move rule leaves *mushroomFront* as don't-care (×). Kara uses *move* both w
 
 The world geometry encodes the stopping condition spatially. The FSM has essentially no memory — it just moves until it senses the leaf. This is a powerful design pattern: when possible, encode information in the **world layout** rather than in extra FSM states.`;
 
+// ── Target worlds (manually traced from the reference FSM solutions) ─────
+
+// Ex1: Kara walks the winding path, eats the lone leaf and halts in q2.
+// Ends at (2,7) facing down, leaf removed, trees unchanged.
+const ex1TargetWorld = makeWorld(
+  15, 10,
+  2, 7, 'down',
+  [[4,2],[4,3],[4,4],[3,1],[1,2]],
+  [],
+  [],
+);
+
+// Ex2: Kara eats the whole row (including the one she starts on), turns
+// at the right mushroom, eats back, halts at the left mushroom in q4.
+// Ends at (1,4) facing left, no leaves, mushrooms intact at (0,4) + (14,4).
+const ex2TargetWorld = makeWorld(
+  15, 10,
+  1, 4, 'left',
+  [],
+  [[0,4],[14,4]],
+  [],
+);
+
+// Ex3 Forest Circler: never halts, just orbits forever. We flag it
+// `noCheckTarget` and set target = initial so the data model stays
+// uniform without forcing the student to "reach" anything.
+const ex3TargetWorld = ex3World;
+
+// Ex4: Mushroom Pusher. Kara pushes the mushroom from (4,4) rightwards.
+// The leaf at (7,4) signals "stop now" via onLeaf. The mushroom ends
+// at (8,4) (one cell past where the leaf was) and Kara at (7,4) right
+// after running removeLeaf. Leaf is gone.
+const ex4TargetWorld = makeWorld(
+  15, 10,
+  7, 4, 'right',
+  [],
+  [[8,4]],
+  [],
+);
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 import {
@@ -289,33 +329,61 @@ import {
   EX4_BLOCKS, EX4_PYTHON,
 } from './exampleSolutions.js';
 
+// Each example is a self-contained Challenge object (matches the same
+// shape as user-authored challenges in store.js). Loading an example
+// from the header dropdown installs it as a one-challenge "book" so the
+// student gets the same Run / pass-fail / Show-solution flow as a real
+// challenge file.
+//
+// IDs use the `builtin:` prefix to avoid collisions with user-generated
+// guids.
+function makeExampleChallenge({ id, name, world, fsm, blocks, python, notes, targetWorld, noCheckTarget }) {
+  return {
+    id, guid: id, name, mode: 'fsm',
+    notes,
+    allowModeChange: true,
+    initialWorld: world,
+    targetWorld,
+    intermediateCheckpoints: [],
+    starter:  { fsm: null, blocks: null, python: '' },
+    solution: { fsm, blocks, python },
+    solutionAvailableToStudents: true,
+    noCheckTarget: !!noCheckTarget,
+  };
+}
+
 export const EXAMPLES = [
-  {
-    id: 'ex1',
+  makeExampleChallenge({
+    id: 'builtin:ex1',
     name: '1. Left-Turn Pathfinder  ⭐',
     world: ex1World, fsm: ex1Fsm,
     blocks: EX1_BLOCKS, python: EX1_PYTHON,
     notes: ex1Notes,
-  },
-  {
-    id: 'ex2',
+    targetWorld: ex1TargetWorld,
+  }),
+  makeExampleChallenge({
+    id: 'builtin:ex2',
     name: '2. Row Harvester  ⭐⭐',
     world: ex2World, fsm: ex2Fsm,
     blocks: EX2_BLOCKS, python: EX2_PYTHON,
     notes: ex2Notes,
-  },
-  {
-    id: 'ex3',
+    targetWorld: ex2TargetWorld,
+  }),
+  makeExampleChallenge({
+    id: 'builtin:ex3',
     name: '3. Forest Circler  ⭐⭐⭐',
     world: ex3World, fsm: ex3Fsm,
     blocks: EX3_BLOCKS, python: EX3_PYTHON,
     notes: ex3Notes,
-  },
-  {
-    id: 'ex4',
+    targetWorld: ex3TargetWorld,
+    noCheckTarget: true,
+  }),
+  makeExampleChallenge({
+    id: 'builtin:ex4',
     name: '4. Mushroom Pusher  ⭐⭐⭐⭐',
     world: ex4World, fsm: ex4Fsm,
     blocks: EX4_BLOCKS, python: EX4_PYTHON,
     notes: ex4Notes,
-  },
+    targetWorld: ex4TargetWorld,
+  }),
 ];

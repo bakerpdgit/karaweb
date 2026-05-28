@@ -2,3 +2,11 @@ node_modules/
 dist/
 .claude/
 .vscode/
+
+# Local-only environment (Cloudflare Turnstile site key + dev overrides)
+.env.local
+.env.*.local
+
+# Cloudflare Wrangler local state for the Turnstile proxy worker
+cloudflare-worker/.wrangler/
+cloudflare-worker/node_modules/

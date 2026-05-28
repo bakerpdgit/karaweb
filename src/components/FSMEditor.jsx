@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { transitionPath, formatGuard, formatAction, STATE_R } from '../utils.js';
+import { useConfirmModal } from './ConfirmModal.jsx';
 
 // ── Arrow marker defs ────────────────────────────────────────────────────────
 
@@ -193,10 +194,16 @@ const TOOLS = [
 ];
 
 export default function FSMEditor({
-  fsm, simCurrentStateId, lastTransitionId, simMode, dispatch, onEditTransition,
+  fsm, simCurrentStateId, lastTransitionId, simMode: simModeRaw, dispatch, onEditTransition,
+  readOnly = false, fsmStatesCap = null,
 }) {
+  // Treat readOnly as a non-edit sim mode: it disables every place
+  // that gates on `simMode === 'edit'` (state drag, transition add,
+  // delete, rename, etc.). All existing call sites stay unchanged.
+  const simMode = readOnly ? 'paused' : simModeRaw;
   const svgRef = useRef(null);
   const [tool, setTool] = useState('select');
+  const { alert: showAlert, modal: alertModal } = useConfirmModal();
   const [selectedId, setSelectedId] = useState(null);   // 'state-X' | 'trans-X' | null
   const [drawingFrom, setDrawingFrom] = useState(null); // stateId when drawing arrow
   const [mousePos, setMousePos] = useState({ x: 200, y: 200 });
@@ -240,12 +247,22 @@ export default function FSMEditor({
     if (e.target !== svgRef.current && !e.target.closest?.('.svg-bg')) return;
     // Click on background
     if (tool === 'addState' && simMode === 'edit') {
+      // Reject the click cleanly when the teacher's per-challenge
+      // states cap is reached.
+      if (fsmStatesCap != null && fsm.states.length >= fsmStatesCap) {
+        showAlert({
+          message: `You've reached the ${fsmStatesCap}-state limit for this challenge. Delete a state before adding another.`,
+        });
+        setSelectedId(null);
+        setDrawingFrom(null);
+        return;
+      }
       const pos = getSVGPos(e);
       dispatch({ type: 'ADD_STATE', x: pos.x, y: pos.y });
     }
     setSelectedId(null);
     setDrawingFrom(null);
-  }, [tool, simMode, getSVGPos, dispatch]);
+  }, [tool, simMode, getSVGPos, dispatch, fsmStatesCap, fsm.states.length, showAlert]);
 
   // ── State node handlers ──────────────────────────────────────────────────
 
@@ -480,6 +497,8 @@ export default function FSMEditor({
           Current state: <strong>{fsm.states.find(s => s.id === simCurrentStateId)?.label}</strong>
         </div>
       )}
+
+      {alertModal}
     </div>
   );
 }

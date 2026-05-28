@@ -1,0 +1,13 @@
+{
+  "format": "unitester-rsa-oaep-public-v1",
+  "publicKeyJwk": {
+    "alg": "RSA-OAEP-256",
+    "e": "AQAB",
+    "ext": true,
+    "key_ops": [
+      "encrypt"
+    ],
+    "kty": "RSA",
+    "n": "yZQ9poBVSxHRjbLHDnRQgJ8ZNNaz8WZ8wB6WueJk6H-COBe16RfeZBzTDkHj4C1si92hZDqp4-6OL0U9m7bPjLtge0vmsR2-FnkP1VpZfNEdrwshR5QOGMhmh4xbr4lewAcMJzzHDjcPqoidMXPDaTKo57-YQ4LesSFao-RuO5QqsACYeJvsQp6Fm2Rc7IqvB-abfafTinOKMwgsxzAMCf7yw4rN9W6Z6PjNtS35AttNoqw8tsdqq9Pl15p4JLpMNKyVNpD4FylZ7ufqdk_Cj7yeUNyeuoEV0NhEgbTw5qtMwAri7MXhYMT_b9IIPG3cOZQ3-DCqJeqUx4O785oKIdxHMvweYOeCvTys6hojsAmrVCHIlwjcORIo1qDAm5c6iN20ov7WTygP8kOiuYwW7Sa-WvfhFiRpBLsn9DKseLOD6xrv8Ef_Jg52emsSQvVJLUrWF3FS73iG4jETo_piXtv1axZ6sInSsAejJkBt7772NcWzN7AQenPiXjpxJ-BpTF2AcnWmbgakxfHYdIeuKveqQHhvXj2G1OQOyvhxM6WcMHTs7ewqFPnBMtkTmsPIzXD1H9MTIZfMW7MDdxF9eFLtEZz74lJ1z8jgk5vfRG8_980g-4UaXduXC27libN1Kst83gaBQYzZEATqmnv4xd3DRdJ0rT-i3ab7m-_7Nhk"
+  }
+}

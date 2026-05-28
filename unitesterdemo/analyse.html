@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analyse Submissions</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.css" integrity="sha384-UA8juhPf75SzzAMA/4fo3yOU7sBJ0om7SCD2GHq0fZqZco6tr1UCV7nUbk9J90JM" crossorigin="anonymous">
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="site-nav-inner">
+      <div class="admin-nav-icons">
+        <a class="admin-nav-icon" href="index.html" title="Home">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.1L1 12h3v10h7v-7h2v7h7V12h3z"/></svg>
+          <span class="admin-nav-label">Home</span>
+        </a>
+        <a class="admin-nav-icon" href="admin.html" title="Admin">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.65 10A6 6 0 1 0 10 17h10l2-2-2-2h-2l-2-2zM7 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+          <span class="admin-nav-label">Admin</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page-shell">
+    <header class="page-heading">
+      <div>
+        <h1>Analyse Submissions</h1>
+        <p>Unlock with the private key, find the test, then fetch cloud results or add saved student result files.</p>
+      </div>
+    </header>
+
+    <div class="teacher-grid">
+      <aside class="panel side-panel">
+        <div id="analysisChoiceRow" class="button-stack">
+          <button id="findAnalysisTestByName" class="secondary-button" type="button">Find Test By Name</button>
+          <button id="browseAnalysisOpenTests" class="secondary-button" type="button">Browse Open Tests</button>
+        </div>
+
+        <div id="analysisNameSearchPanel" class="flow-section" hidden>
+          <div class="field">
+            <label for="analysisTestName">Test name</label>
+            <div class="file-action-field">
+              <input id="analysisTestName" class="text-input" autocomplete="off">
+              <button id="searchAnalysisByName" class="secondary-button" type="button">Search</button>
+            </div>
+            <p class="field-hint">Type the test name carefully. It is case sensitive.</p>
+          </div>
+        </div>
+
+        <div id="analysisTestChoicePanel" class="flow-section" hidden>
+          <div id="analysisNamedTestResult" class="selected-test-label" hidden></div>
+          <div id="analysisOpenTestSelectField" class="field" hidden>
+            <label for="analysisTestSelect">Test</label>
+            <select id="analysisTestSelect" class="select-input" required>
+              <option value="">Find a test first...</option>
+            </select>
+          </div>
+          <button id="lockAnalysisTest" class="primary-button full-width-button" type="button">Use This Test</button>
+        </div>
+
+        <div id="analysisUploadPanel" class="flow-section" hidden>
+          <div class="field">
+            <button id="fetchCloudSubmissions" class="secondary-button full-width-button" type="button">
+              <span id="cloudFetchSpinner" class="button-spinner" aria-hidden="true" hidden></span>
+              <span>Fetch Cloud Submissions</span>
+            </button>
+            <p class="field-hint">Uses your unlocked private key to prove teacher access.</p>
+          </div>
+          <div class="field">
+            <label for="resultsZip">Student results ZIP</label>
+            <div class="file-action-field">
+              <input id="resultsZip" class="text-input" type="file" accept=".zip,application/zip">
+              <button id="analyseButton" class="secondary-button" type="button">Add Zip</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="resultsTxt">Student result .txt files</label>
+            <div class="file-action-field">
+              <input id="resultsTxt" class="text-input" type="file" accept=".txt,text/plain" multiple>
+              <button id="addTxtButton" class="secondary-button" type="button">Add .txt</button>
+            </div>
+          </div>
+        </div>
+        <p id="analyseStatus" class="status-line" aria-live="polite"></p>
+      </aside>
+
+      <section class="panel work-panel">
+        <div class="results-toolbar">
+          <div>
+            <h2 class="panel-title">Results Grid</h2>
+            <p id="resultsSummary" class="status-line">No submissions loaded.</p>
+          </div>
+          <div class="button-row">
+            <button id="settingsButton" class="icon-button" type="button" title="Grid settings" aria-label="Grid settings">&#9881;</button>
+            <button id="exportCsv" class="secondary-button" type="button" disabled>Export CSV</button>
+          </div>
+        </div>
+
+        <div id="resultsTableWrap" class="table-wrap">
+          <table id="resultsTable" class="results-table"></table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="privateKeyModal" class="modal-backdrop">
+    <section class="modal-panel auth-panel" role="dialog" aria-modal="true" aria-labelledby="privateKeyTitle">
+      <header class="modal-heading">
+        <h2 id="privateKeyTitle">Private Key Required</h2>
+      </header>
+      <div class="modal-body">
+        <div class="field">
+          <label for="privateKeyFile">keydetails.txt</label>
+          <input id="privateKeyFile" class="text-input" type="file" accept=".txt,text/plain,application/json">
+        </div>
+        <label class="checkbox-row"><input id="retainPrivateKey" type="checkbox"> Retain this key in this browser</label>
+        <p id="privateKeyStatus" class="status-line" aria-live="polite"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="unlockAnalyseButton" class="primary-button" type="button">Unlock</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="settingsModal" class="modal-backdrop" hidden>
+    <section class="modal-panel auth-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <header class="modal-heading">
+        <h2 id="settingsTitle">Analyse Settings</h2>
+        <button id="closeSettingsTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div class="modal-body">
+        <div class="settings-grid">
+          <label class="checkbox-row"><input id="hideNames" type="checkbox"> Hide names in the results grid</label>
+
+          <div class="field">
+            <label for="resultDisplayMode">Question cells</label>
+            <select id="resultDisplayMode" class="select-input">
+              <option value="marks">Right / wrong</option>
+              <option value="choices">Choice and mark</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="duplicateMode">Duplicate submissions</label>
+            <select id="duplicateMode" class="select-input">
+              <option value="all">Show all</option>
+              <option value="first">Show first</option>
+              <option value="latest">Show latest</option>
+              <option value="best">Show best score</option>
+            </select>
+          </div>
+
+          <label class="checkbox-row"><input id="deleteCloudOnHide" type="checkbox"> Delete cloud submissions when removing rows</label>
+        </div>
+
+        <div class="settings-section">
+          <h3>Security Keys</h3>
+          <p>Create a new public/private key pair. Keep <strong>keydetails.txt</strong> safe, and upload <strong>publickey.txt</strong> and <strong>keytest.txt</strong> to the web root.</p>
+        </div>
+        <p id="settingsStatus" class="status-line" aria-live="polite"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="generateKeysButton" class="primary-button" type="button">Generate and Download Keys</button>
+        <button id="closeSettings" class="secondary-button" type="button">Close</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="questionModal" class="modal-backdrop" hidden>
+    <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <header class="modal-heading">
+        <h2 id="previewTitle">Question Preview</h2>
+        <button id="closePreviewTop" class="exam-button" type="button">Close</button>
+      </header>
+      <div id="previewQuestion" class="modal-body"></div>
+      <div class="modal-body preview-controls">
+        <label><input id="showPreviewAnswer" type="checkbox"> Show answer</label>
+        <span id="previewMeta"></span>
+      </div>
+      <div class="modal-actions">
+        <button id="closePreview" class="secondary-button" type="button">Close</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="deleteConfirmModal" class="modal-backdrop" hidden>
+    <section class="modal-panel edit-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="deleteConfirmTitle">
+      <header class="modal-heading">
+        <h2 id="deleteConfirmTitle">Confirm Delete</h2>
+      </header>
+      <div id="deleteConfirmMessage" class="modal-body"></div>
+      <div class="modal-actions">
+        <button id="deleteConfirmNo" class="secondary-button" type="button">Cancel</button>
+        <button id="deleteConfirmYes" class="primary-button" type="button">Delete</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.js" integrity="sha384-Tt7wBxLKwSzFVRET4O4U9H6v8MNaQ/CjN2FMP4xFm0ErrFu6aNqoonRVW5W40iGI" crossorigin="anonymous"></script>
+  <script src="shared.js"></script>
+  <script src="codehooks-client.js"></script>
+  <script src="analyse.js"></script>
+</body>
+</html>

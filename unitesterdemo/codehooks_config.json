@@ -1,0 +1,5 @@
+{
+  "apiBaseUrl": "https://unitester-owyr.api.codehooks.io/dev",
+  "turnstileSiteKey": "0x4AAAAAADHt1baY0Wx7YgH2",
+  "turnstileRequired": true
+}

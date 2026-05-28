@@ -37,9 +37,9 @@ export default function RunnerOutputPanel({ runner, dispatch, pythonRunner }) {
   };
 
   return (
-    <div className="python-output-panel" role="region" aria-label="Python output">
+    <div className="python-output-panel" role="region" aria-label="Output">
       <div className="python-output-header">
-        <span>Python output</span>
+        <span>Output</span>
         {installing && (
           <span className="python-installing">⟳ installing {installing}…</span>
         )}

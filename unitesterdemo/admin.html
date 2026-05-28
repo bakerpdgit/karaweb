@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin — Practice Test</title>
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.css"
+      integrity="sha384-UA8juhPf75SzzAMA/4fo3yOU7sBJ0om7SCD2GHq0fZqZco6tr1UCV7nUbk9J90JM"
+      crossorigin="anonymous"
+    />
+  </head>
+  <body>
+    <nav class="site-nav" aria-label="Main navigation">
+      <div class="site-nav-inner">
+        <div class="admin-nav-icons">
+          <a class="admin-nav-icon" href="index.html" title="Home">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.1L1 12h3v10h7v-7h2v7h7V12h3z"/></svg>
+            <span class="admin-nav-label">Home</span>
+          </a>
+          <a class="admin-nav-icon" href="admin.html" title="Admin" aria-current="page">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.65 10A6 6 0 1 0 10 17h10l2-2-2-2h-2l-2-2zM7 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+            <span class="admin-nav-label">Admin</span>
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="page-shell">
+      <header class="page-heading">
+        <div>
+          <h1>Admin Access</h1>
+          <p class="page-subtitle">Teacher administration area. Access requires your private key file.</p>
+        </div>
+      </header>
+
+      <div id="adminLockPanel" class="panel selection-panel">
+        <h2 class="panel-heading">Verify Identity</h2>
+        <p>Choose your <strong>keydetails.txt</strong> file to unlock teacher functions.</p>
+        <div class="field">
+          <label for="adminKeyFile">Private key file</label>
+          <input id="adminKeyFile" type="file" accept=".txt" class="file-input" />
+        </div>
+        <div class="field">
+          <label class="checkbox-row">
+            <input id="adminRetainKey" type="checkbox" checked>
+            Remember key in this browser
+          </label>
+        </div>
+        <div class="button-row">
+          <button id="adminUnlockButton" class="primary-button" type="button">Unlock</button>
+        </div>
+        <p id="adminLockStatus" class="status-line" aria-live="polite"></p>
+      </div>
+
+      <div id="adminContent" hidden>
+        <div class="admin-action-grid">
+          <a href="create.html" class="admin-action-card">
+            <h2>Create / Edit Test</h2>
+            <p>Build or modify a test and download the test file to deploy.</p>
+          </a>
+          <a href="analyse.html" class="admin-action-card">
+            <h2>Analyse Submissions</h2>
+            <p>Load student result files and view the results grid.</p>
+          </a>
+        </div>
+      </div>
+    </main>
+
+    <script src="shared.js"></script>
+    <script src="admin.js"></script>
+  </body>
+</html>

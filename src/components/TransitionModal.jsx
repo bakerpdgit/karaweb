@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { makeDefaultGuard } from '../utils.js';
+import { useConfirmModal } from './ConfirmModal.jsx';
 
 const SENSORS = [
   { key: 'treeFront',     label: 'Tree Front',      desc: 'Tree directly ahead of Kara' },
@@ -39,7 +40,7 @@ function GuardToggle({ value, onChange }) {
   );
 }
 
-export default function TransitionModal({ fsm, editTarget, dispatch, onClose }) {
+export default function TransitionModal({ fsm, editTarget, dispatch, onClose, fsmTransitionsCap = null }) {
   // editTarget: { mode: 'new', fromId, toId } | { mode: 'edit', transitionId }
   const isNew = editTarget.mode === 'new';
   const existing = isNew ? null : fsm.transitions.find(t => t.id === editTarget.transitionId);
@@ -49,11 +50,21 @@ export default function TransitionModal({ fsm, editTarget, dispatch, onClose }) 
 
   const [guard, setGuard]   = useState(existing?.guard   ?? makeDefaultGuard());
   const [action, setAction] = useState(existing?.action  ?? 'none');
+  const { alert: showAlert, modal: alertModal } = useConfirmModal();
 
   const updateGuard = (key, val) => setGuard(g => ({ ...g, [key]: val }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isNew) {
+      // Block the add if the teacher's transitions cap is hit. Edits
+      // to existing transitions are always allowed (no count change).
+      if (fsmTransitionsCap != null && fsm.transitions.length >= fsmTransitionsCap) {
+        await showAlert({
+          message: `You've reached the ${fsmTransitionsCap}-transition limit for this challenge. Delete a transition before adding another.`,
+        });
+        onClose();
+        return;
+      }
       dispatch({
         type: 'ADD_TRANSITION',
         fromId: editTarget.fromId,
@@ -132,6 +143,7 @@ export default function TransitionModal({ fsm, editTarget, dispatch, onClose }) 
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
         </div>
       </div>
+      {alertModal}
     </div>
   );
 }

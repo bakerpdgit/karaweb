@@ -1,0 +1,3 @@
+This is an html/css/vanilla js web tool for letting students take multiple choice questions in a very similar UI to that used by students for university admissions tests. The main app is static and runs via JavaScript.
+
+Optional cloud submission storage uses the Codehooks backend in `codehooks-backend/`. The backend stores only readable metadata plus encrypted payloads, uses Cloudflare Turnstile and origin checks for student submissions, and uses a teacher private-key challenge for Analyse cloud fetches. The teacher public key from `publickey.txt` must be configured in Codehooks as `TEACHER_PUBLIC_KEY_B64`; do not add private keys or Codehooks API tokens to static files.

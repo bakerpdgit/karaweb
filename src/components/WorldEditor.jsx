@@ -7,7 +7,7 @@ const DEFAULT_CELL = 38;
 
 // ── Sprite components ────────────────────────────────────────────────────────
 
-function KaraSprite({ direction, size }) {
+export function KaraSprite({ direction, size }) {
   const rot = { up: 0, right: 90, down: 180, left: 270 }[direction] ?? 0;
   return (
     <svg width={size} height={size} viewBox="0 0 38 38" style={{ display: 'block' }}>
@@ -29,7 +29,7 @@ function KaraSprite({ direction, size }) {
   );
 }
 
-function TreeSprite({ size }) {
+export function TreeSprite({ size }) {
   return (
     <svg width={size} height={size} viewBox="0 0 38 38" style={{ display: 'block' }}>
       <rect x="15" y="26" width="8" height="12" rx="1" fill="#92400e" />
@@ -39,7 +39,7 @@ function TreeSprite({ size }) {
   );
 }
 
-function MushroomSprite({ size }) {
+export function MushroomSprite({ size }) {
   return (
     <svg width={size} height={size} viewBox="0 0 38 38" style={{ display: 'block' }}>
       <rect x="14" y="22" width="10" height="14" rx="2" fill="#d4a373" />
@@ -51,14 +51,49 @@ function MushroomSprite({ size }) {
   );
 }
 
-function LeafSprite({ size }) {
+export function LeafSprite({ size }) {
+  // Three-lobe maple-style leaf with a short stem.
   return (
     <svg width={size} height={size} viewBox="0 0 38 38" style={{ display: 'block' }}>
-      <ellipse cx="19" cy="20" rx="13" ry="8" fill="#4ade80"
-        transform="rotate(-35 19 20)" />
-      <line x1="19" y1="30" x2="19" y2="10" stroke="#16a34a" strokeWidth="1.4"
-        transform="rotate(-35 19 20)" />
+      {/* stem */}
+      <line x1="19" y1="33" x2="19" y2="22" stroke="#166534" strokeWidth="1.8" strokeLinecap="round" />
+      {/* left lobe */}
+      <ellipse cx="10" cy="19" rx="5" ry="9" fill="#4ade80"
+        stroke="#166534" strokeWidth="0.8"
+        transform="rotate(-32 10 19)" />
+      {/* right lobe */}
+      <ellipse cx="28" cy="19" rx="5" ry="9" fill="#4ade80"
+        stroke="#166534" strokeWidth="0.8"
+        transform="rotate(32 28 19)" />
+      {/* center (top) lobe */}
+      <ellipse cx="19" cy="13" rx="5" ry="10" fill="#4ade80"
+        stroke="#166534" strokeWidth="0.8" />
+      {/* veins */}
+      <line x1="19" y1="22" x2="19" y2="6"  stroke="#166534" strokeWidth="0.8" />
+      <line x1="19" y1="22" x2="9"  y2="14" stroke="#166534" strokeWidth="0.7" />
+      <line x1="19" y1="22" x2="29" y2="14" stroke="#166534" strokeWidth="0.7" />
     </svg>
+  );
+}
+
+// Small "leaf present" badge shown in a cell corner when Kara is
+// standing on a leaf — so the leaf is still visible at a glance even
+// though Kara covers the centre of the cell.
+export function LeafCornerBadge({ size }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: 1, bottom: 1,
+        width: size,
+        height: size,
+        zIndex: 2,
+        pointerEvents: 'none',
+        filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.4))',
+      }}
+    >
+      <LeafSprite size={size} />
+    </div>
   );
 }
 
@@ -81,8 +116,8 @@ function WorldCell({ cell, isKara, karaDir, highlight, simMode, tool, onClick, o
       onMouseEnter={onEnter}
       title={`obj:${cell.object ?? 'none'} leaf:${cell.hasLeaf}`}
     >
-      {cell.hasLeaf && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: isKara ? 0.45 : 1,
+      {cell.hasLeaf && !isKara && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <LeafSprite size={cellSize} />
         </div>
@@ -93,6 +128,11 @@ function WorldCell({ cell, isKara, karaDir, highlight, simMode, tool, onClick, o
         <div className="kara-overlay">
           <KaraSprite direction={karaDir} size={cellSize} />
         </div>
+      )}
+      {cell.hasLeaf && isKara && (
+        // Kara is standing on a leaf — show a small leaf badge in the
+        // bottom-right corner so the leaf is still visible.
+        <LeafCornerBadge size={Math.max(12, Math.round(cellSize * 0.45))} />
       )}
     </div>
   );
