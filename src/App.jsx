@@ -35,6 +35,8 @@ import WelcomeSlideshow from './components/WelcomeSlideshow.jsx';
 import MainWelcomeSlideshow from './components/MainWelcomeSlideshow.jsx';
 import UpdateBanner from './components/UpdateBanner.jsx';
 import { checkForUpdate } from './utils/updateCheck.js';
+import QueuedResultsChip from './components/QueuedResultsChip.jsx';
+import QueuedSubmissionsModal from './components/QueuedSubmissionsModal.jsx';
 import { unlockKeyDetailsFile } from './utils/keyDetailsFile.js';
 import { deriveSubmissionVerifier } from './utils/passwordVerifier.js';
 import ShareLinkModal from './components/ShareLinkModal.jsx';
@@ -93,6 +95,7 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showMainWelcome, setShowMainWelcome] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [queueModalOpen, setQueueModalOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const [sensorsOpen, setSensorsOpen]   = useState(true);
@@ -859,6 +862,10 @@ export default function App() {
 
           <div className="header-sep" />
 
+          <QueuedResultsChip
+            sessionKey={sessionKeyFor(loadedCloudSave)}
+            onClick={() => setQueueModalOpen(true)}
+          />
           <button className="header-btn" title="Settings"
             onClick={() => setShowSettings(true)}>
             ⚙ Settings
@@ -893,6 +900,7 @@ export default function App() {
             dispatch({ type: 'STUDENT_LOGOUT' });
             setShowStudentLogin(true);
           }}
+          onOpenQueue={() => setQueueModalOpen(true)}
         />
       )}
 
@@ -1209,6 +1217,13 @@ export default function App() {
           knownLogin={getStudentSession(sessionKeyFor(loadedCloudSave))}
           onLogin={handleStudentLogin}
           onCancel={() => setShowStudentLogin(false)}
+        />
+      )}
+      {queueModalOpen && (
+        <QueuedSubmissionsModal
+          sessionKey={sessionKeyFor(loadedCloudSave)}
+          loadedCloudSave={loadedCloudSave}
+          onClose={() => setQueueModalOpen(false)}
         />
       )}
       {showSettings && (

@@ -75,12 +75,33 @@ const PUB_SETTINGS_COLLECTION = "pub_settings";
 const RESULTS_COLLECTION = "results";
 const CHALLENGE_COLLECTION = "teacher_challenges";
 const SESSION_COLLECTION = "teacher_sessions";
+const RATE_LIMITS_COLLECTION = "rate_limits";
 
 const MAX_PAYLOAD_CHARS = 14000; // matches Apps Script
 const MAX_TURNSTILE_CHARS = 2048;
-const MAX_SUBMISSION_CAP = 200; // per (pubFp, file, student, challenge)
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+// ── App-level rate limits (edit if your school has different needs) ─
+// All four caps are enforced server-side BEFORE a row is inserted /
+// updated. On breach the backend returns HTTP 429 with one of:
+//   cap_reached            — per-cell submission count exhausted
+//   too_many_per_minute    — burst rate across all this teacher's students
+//   too_many_new_students  — new-student introduction limit for today
+//   too_many_new_challenges — this student tried too many distinct
+//                            challenges today
+// Counters are stored in the `rate_limits` collection, keyed by UTC
+// date/minute, and pruned to a 7-day window during the same
+// housekeeping pass that prunes long-term results.
+//
+// Set any cap to 0 to disable that single check; the others stay
+// active. Adjust freely — these defaults assume a single teacher
+// with up to ~10 normal-sized classes across one day.
+const MAX_SUBMISSIONS_PER_CELL = 100;             // per (teacher, file, student, challenge)
+const MAX_NEW_STUDENTS_PER_DAY = 250;             // new (never-seen) studentCodeHash per teacher per UTC day
+const MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY = 50; // distinct new challenges this student hits per UTC day
+const MAX_SUBMISSIONS_PER_MINUTE = 55;            // bursts across all students per teacher per rolling minute
+// ────────────────────────────────────────────────────────────────────
 
 // ── Data retention (edit me) ────────────────────────────────────────
 // Submission rows older than this many days are removed automatically
@@ -365,9 +386,22 @@ app.post("/api/public/results", async (req, res) => {
       challengeGuid,
     };
     const existing = await conn.findOneOrNull(RESULTS_COLLECTION, key);
+    // Rate-limit checks happen BEFORE the per-cell cap so a teacher's
+    // counters reflect every attempted submission, not just those that
+    // would have been inserts.
+    const isNewPair = !existing;
+    const isNewStudent = isNewPair && !(await conn.findOneOrNull(
+      RESULTS_COLLECTION,
+      { pubFingerprint, studentCodeHash },
+    ));
+    const rl = await enforceRateLimits(conn, pubFingerprint, studentCodeHash, isNewStudent, isNewPair);
+    if (!rl.ok) {
+      res.status(429).json({ error: rl.error });
+      return;
+    }
     if (existing) {
       const count = Number(existing.count) || 0;
-      if (count >= MAX_SUBMISSION_CAP) {
+      if (MAX_SUBMISSIONS_PER_CELL > 0 && count >= MAX_SUBMISSIONS_PER_CELL) {
         res.status(429).json({ error: "cap_reached", count });
         return;
       }
@@ -641,9 +675,18 @@ async function runTeacherFetchHousekeeping(conn) {
           },
         })
       : 0;
+  // Rate-limit counter rows older than 7 days are useless (their window
+  // string is already in the past, so they'll never be matched on a new
+  // submission). Cleanup keeps the collection bounded.
+  const rateCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10);
+  const removedRateLimits = await safeRemoveMany(conn, RATE_LIMITS_COLLECTION, {
+    window: { $lt: rateCutoff },
+  });
   return {
     retentionDays: RESULT_RETENTION_DAYS,
     removedResults,
+    removedRateLimits,
     removedChallenges: await safeRemoveMany(conn, CHALLENGE_COLLECTION, {
       expiresAt: { $lt: cutoffNow },
     }),
@@ -651,6 +694,86 @@ async function runTeacherFetchHousekeeping(conn) {
       expiresAt: { $lt: cutoffNow },
     }),
   };
+}
+
+// ── App-level rate-limit enforcement ───────────────────────────────────
+// Reads (and creates as needed) per-(pubFingerprint, window) counter
+// docs in the rate_limits collection, and rejects when any of the four
+// caps would be exceeded. Returns { ok: true } on pass, or
+// { ok: false, error: '<machine_string>' } on breach.
+//
+// Each cap can be disabled individually by setting its constant to 0.
+async function enforceRateLimits(conn, pubFingerprint, studentCodeHash, isNewStudent, isNewPair) {
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);          // YYYY-MM-DD
+  const minute = now.toISOString().slice(0, 16);        // YYYY-MM-DDTHH:MM
+
+  // 1. Per-minute burst cap (always-charged: even repeat submissions count).
+  if (MAX_SUBMISSIONS_PER_MINUTE > 0) {
+    const cur = await getOrInitCounter(conn, pubFingerprint, "minute", "", minute);
+    if (cur >= MAX_SUBMISSIONS_PER_MINUTE) {
+      return { ok: false, error: "too_many_per_minute" };
+    }
+  }
+
+  // 2. New-student cap (only charged when this hash hasn't been seen before).
+  if (isNewStudent && MAX_NEW_STUDENTS_PER_DAY > 0) {
+    const cur = await getOrInitCounter(conn, pubFingerprint, "students", "", date);
+    if (cur >= MAX_NEW_STUDENTS_PER_DAY) {
+      return { ok: false, error: "too_many_new_students" };
+    }
+  }
+
+  // 3. New-challenge-per-student cap (only charged when this student hits
+  //    a challengeGuid they hadn't yet today).
+  if (isNewPair && MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY > 0) {
+    const cur = await getOrInitCounter(conn, pubFingerprint, "challenges", studentCodeHash, date);
+    if (cur >= MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY) {
+      return { ok: false, error: "too_many_new_challenges" };
+    }
+  }
+
+  // All caps passed — now bump the counters we just consulted.
+  if (MAX_SUBMISSIONS_PER_MINUTE > 0) {
+    await bumpCounter(conn, pubFingerprint, "minute", "", minute);
+  }
+  if (isNewStudent && MAX_NEW_STUDENTS_PER_DAY > 0) {
+    await bumpCounter(conn, pubFingerprint, "students", "", date);
+  }
+  if (isNewPair && MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY > 0) {
+    await bumpCounter(conn, pubFingerprint, "challenges", studentCodeHash, date);
+  }
+  return { ok: true };
+}
+
+async function getOrInitCounter(conn, pubFingerprint, scope, key, window) {
+  const doc = await conn.findOneOrNull(RATE_LIMITS_COLLECTION, {
+    pubFingerprint, scope, key, window,
+  });
+  return doc ? Number(doc.count) || 0 : 0;
+}
+
+async function bumpCounter(conn, pubFingerprint, scope, key, window) {
+  // Two-step "upsert by hand" — Codehooks Datastore doesn't expose a
+  // single atomic $inc. Race-tolerant: two concurrent inserts may
+  // produce duplicate docs which over-count slightly, but never
+  // under-count (the cap check above runs against the higher number).
+  try {
+    const doc = await conn.findOneOrNull(RATE_LIMITS_COLLECTION, {
+      pubFingerprint, scope, key, window,
+    });
+    if (doc) {
+      await conn.updateOne(RATE_LIMITS_COLLECTION, { _id: doc._id }, {
+        count: (Number(doc.count) || 0) + 1,
+      });
+    } else {
+      await conn.insertOne(RATE_LIMITS_COLLECTION, {
+        pubFingerprint, scope, key, window, count: 1,
+      });
+    }
+  } catch (err) {
+    console.warn("rate-limit counter bump failed", err);
+  }
 }
 
 async function safeRemoveMany(conn, collection, query) {

@@ -52,8 +52,28 @@ var ROW_RETENTION_DAYS = 1095;
 var _VERIFY_PROXY_URL  = "__VERIFY_PROXY_URL__";
 var TURNSTILE_REQUIRED = __TURNSTILE_REQUIRED__;
 var MAX_PAYLOAD_CHARS  = 14000;     // ~10 KB plaintext after RSA-OAEP+base64
-var MAX_SUBMISSION_CAP = 200;       // per (studentCode, challengeGuid)
 var SHEET_FOLDER_NAME  = "karaweb";
+
+// ── App-level rate limits (edit if your school has different needs) ──
+// All four caps are enforced server-side BEFORE a row is inserted /
+// updated. On breach the script returns one of:
+//   cap_reached            — per-cell submission count exhausted
+//   too_many_per_minute    — burst rate across all students (this script)
+//   too_many_new_students  — new-student introduction limit for today
+//   too_many_new_challenges — this student tried too many distinct
+//                            challenges today
+// Counters are stored in Apps Script's PropertiesService keyed by UTC
+// date/minute and pruned to a 7-day window during the same
+// housekeeping pass that prunes long-term result rows.
+//
+// Set any cap to 0 to disable that single check; the others stay
+// active. The script-level Properties store is shared across all
+// challenge books this teacher has deployed under this Apps Script.
+var MAX_SUBMISSIONS_PER_CELL              = 100;  // per (file, student, challenge)
+var MAX_NEW_STUDENTS_PER_DAY              = 250;  // new studentCodeHash per teacher per UTC day
+var MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY = 50;  // distinct new challenges this student hits per UTC day
+var MAX_SUBMISSIONS_PER_MINUTE            = 55;   // bursts across all students per teacher per rolling minute
+// ──────────────────────────────────────────────────────────────────────
 
 // Envelope sanity bounds — the encryptedSolution string must start
 // with this header, then a single newline, then valid JSON carrying
@@ -168,13 +188,21 @@ function doPost(e) {
     var passed = !!data.passed;
     var now = new Date();
     var rowIndex = _findRow(sheet, studentCodeHash, challengeGuid);
+    // Rate-limit checks run BEFORE the per-cell cap so counters reflect
+    // every attempted submission, not just inserts.
+    var isNewPair = rowIndex < 0;
+    var isNewStudent = isNewPair && _findRowByStudent_(sheet, studentCodeHash) < 0;
+    var rl = _enforceRateLimits_(studentCodeHash, isNewStudent, isNewPair);
+    if (!rl.ok) {
+      return _json({status: rl.error});
+    }
     if (rowIndex < 0) {
       sheet.appendRow([now, studentCodeHash, challengeGuid, 1, passed, passed, data.encryptedSolution, wrappedStudentCode]);
       return _json({status: "success", created: true});
     }
     var existing = sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
     var count = Number(existing[COL.COUNT - 1]) || 0;
-    if (count >= MAX_SUBMISSION_CAP) {
+    if (MAX_SUBMISSIONS_PER_CELL > 0 && count >= MAX_SUBMISSIONS_PER_CELL) {
       return _json({status: "cap_reached", count: count});
     }
     var firstAttemptPassed = (existing[COL.FIRST - 1] === true || existing[COL.FIRST - 1] === "true");
@@ -227,6 +255,9 @@ function doGet(e) {
     var prunedRows = (ROW_RETENTION_DAYS > 0)
       ? _pruneOldRows(sheet, ROW_RETENTION_DAYS)
       : 0;
+    // Also drop rate-limit counters older than 7 days so PropertiesService
+    // doesn't grow without bound across the lifetime of this script.
+    _pruneRateLimitCounters_();
 
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return _json({status: "success", rows: [], prunedRows: prunedRows});
@@ -312,6 +343,103 @@ function _findRow(sheet, studentCodeHash, challengeGuid) {
     }
   }
   return -1;
+}
+
+// Returns the first row index whose studentCodeHash matches, regardless
+// of challengeGuid — used by the rate-limit code to decide "is this a
+// brand-new student we've never seen before?".
+function _findRowByStudent_(sheet, studentCodeHash) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  var values = sheet.getRange(2, COL.STUDENT_HASH, lastRow - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]) === studentCodeHash) return i + 2;
+  }
+  return -1;
+}
+
+// ── Rate-limit enforcement (PropertiesService-backed counters) ──────
+// See the constants block at the top of this file for the four limits
+// and their semantics. Each counter is a simple integer stored under
+// a date- or minute-stamped key; bumping is read-modify-write, which
+// is safe because doPost already holds a script-level lock for the
+// duration of the request.
+function _enforceRateLimits_(studentCodeHash, isNewStudent, isNewPair) {
+  var now = new Date();
+  var date   = Utilities.formatDate(now, "UTC", "yyyy-MM-dd");
+  var minute = Utilities.formatDate(now, "UTC", "yyyy-MM-dd'T'HH:mm");
+  var props  = PropertiesService.getScriptProperties();
+
+  if (MAX_SUBMISSIONS_PER_MINUTE > 0) {
+    if (_getCounter_(props, "rl:minute:" + minute) >= MAX_SUBMISSIONS_PER_MINUTE) {
+      return {ok: false, error: "too_many_per_minute"};
+    }
+  }
+  if (isNewStudent && MAX_NEW_STUDENTS_PER_DAY > 0) {
+    if (_getCounter_(props, "rl:students:" + date) >= MAX_NEW_STUDENTS_PER_DAY) {
+      return {ok: false, error: "too_many_new_students"};
+    }
+  }
+  if (isNewPair && MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY > 0) {
+    if (_getCounter_(props, "rl:challenges:" + date + ":" + studentCodeHash)
+        >= MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY) {
+      return {ok: false, error: "too_many_new_challenges"};
+    }
+  }
+
+  // All caps passed — bump every counter we consulted.
+  if (MAX_SUBMISSIONS_PER_MINUTE > 0) {
+    _bumpCounter_(props, "rl:minute:" + minute);
+  }
+  if (isNewStudent && MAX_NEW_STUDENTS_PER_DAY > 0) {
+    _bumpCounter_(props, "rl:students:" + date);
+  }
+  if (isNewPair && MAX_NEW_CHALLENGES_PER_STUDENT_PER_DAY > 0) {
+    _bumpCounter_(props, "rl:challenges:" + date + ":" + studentCodeHash);
+  }
+  return {ok: true};
+}
+
+function _getCounter_(props, key) {
+  var raw = props.getProperty(key);
+  return raw ? (Number(raw) || 0) : 0;
+}
+
+function _bumpCounter_(props, key) {
+  try {
+    var raw = props.getProperty(key);
+    var n = raw ? (Number(raw) || 0) : 0;
+    props.setProperty(key, String(n + 1));
+  } catch (err) {
+    // PropertiesService quota errors are non-fatal — better to over-
+    // allow submissions than to reject legitimate ones.
+  }
+}
+
+// Removes rate-limit counter keys whose embedded date is older than 7
+// days. Called from doGet alongside the long-term row prune so it
+// runs once per teacher fetch.
+function _pruneRateLimitCounters_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var all = props.getProperties();
+    var cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - 7);
+    var cutoffDate = Utilities.formatDate(cutoff, "UTC", "yyyy-MM-dd");
+    var stale = [];
+    for (var key in all) {
+      if (!key.indexOf || key.indexOf("rl:") !== 0) continue;
+      // Extract the embedded YYYY-MM-DD by finding the first
+      // 10-character date-like substring after the scope prefix.
+      var m = key.match(/(\d{4}-\d{2}-\d{2})/);
+      if (!m) continue;
+      if (m[1] < cutoffDate) stale.push(key);
+    }
+    for (var i = 0; i < stale.length; i++) props.deleteProperty(stale[i]);
+    return stale.length;
+  } catch (err) {
+    return 0;
+  }
 }
 
 function _sha256Hex(value) {

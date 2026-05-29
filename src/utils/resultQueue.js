@@ -62,6 +62,55 @@ export async function flushQueue(key, loadedCloudSave) {
 }
 
 /**
+ * Like `flushQueue`, but yields per-item progress and DOES NOT stop on
+ * the first failure — it tries every item so the caller can show a
+ * full report (used by the manual-retry modal). Items that succeed
+ * are dropped from the queue regardless of later failures; items that
+ * fail remain queued.
+ *
+ * `onProgress({ index, total, item, status, error })`:
+ *   - status: 'sent' | 'failed'
+ *   - error:  string message when status === 'failed'
+ *
+ * Returns `{ sent, failed, total }`.
+ */
+export async function flushQueueDetailed(key, loadedCloudSave, onProgress) {
+  if (!loadedCloudSave?.apiBaseUrl) return { sent: 0, failed: 0, total: 0 };
+  const original = getQueuedResults(key);
+  if (!original.length) return { sent: 0, failed: 0, total: 0 };
+  const total = original.length;
+  const remaining = [];
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < original.length; i++) {
+    const item = original[i];
+    try {
+      await postCloudResult(loadedCloudSave, {
+        studentCode: item.studentCode,
+        challengeGuid: item.challengeGuid,
+        passed: item.passed,
+        encryptedPayload: item.encryptedPayload,
+        submittedAt: item.submittedAt,
+        turnstileToken: '',
+      });
+      sent += 1;
+      if (onProgress) onProgress({ index: i, total, item, status: 'sent' });
+    } catch (err) {
+      failed += 1;
+      remaining.push(item);
+      const msg = err?.message ?? String(err);
+      if (onProgress) onProgress({ index: i, total, item, status: 'failed', error: msg });
+    }
+  }
+  if (remaining.length === 0) {
+    clearQueuedResults(key);
+  } else {
+    setQueuedResults(key, remaining);
+  }
+  return { sent, failed, total };
+}
+
+/**
  * On app boot, attempt to drain every class that has queued items.
  *
  * `resolveCloudSave(classCode)` should return the cloudSave block for

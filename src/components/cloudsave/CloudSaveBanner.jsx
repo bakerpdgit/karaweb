@@ -16,7 +16,7 @@ import { getQueuedResults, removeStudentSession } from '../../utils/localStore.j
  * Also surfaces the offline-queue length when there are pending results.
  */
 export default function CloudSaveBanner({
-  loadedCloudSave, studentSession, keydetails, onLoginAgain,
+  loadedCloudSave, studentSession, keydetails, onLoginAgain, onOpenQueue,
 }) {
   // The "session key" used for queue / session / display label is
   // always the per-book challengeFileGuid now — both backends use
@@ -68,9 +68,20 @@ export default function CloudSaveBanner({
     <div className={`cloudsave-banner cloudsave-banner-${kind}`}>
       {body}
       {queueCount > 0 && (
-        <span className="cloudsave-banner-queue">
-          📤 {queueCount} result{queueCount === 1 ? '' : 's'} waiting to send
-        </span>
+        onOpenQueue ? (
+          <button
+            type="button"
+            className="cloudsave-banner-queue cloudsave-banner-queue-clickable"
+            onClick={onOpenQueue}
+            title="Click to view and retry queued submissions"
+          >
+            📤 {queueCount} result{queueCount === 1 ? '' : 's'} waiting to send
+          </button>
+        ) : (
+          <span className="cloudsave-banner-queue">
+            📤 {queueCount} result{queueCount === 1 ? '' : 's'} waiting to send
+          </span>
+        )
       )}
     </div>
   );

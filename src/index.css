@@ -1187,6 +1187,68 @@ html, body, #root {
   font-size: 11px;
   color: #475569;
 }
+.cloudsave-banner-queue-clickable {
+  cursor: pointer;
+  font-family: inherit;
+}
+.cloudsave-banner-queue-clickable:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* ── Header queued-submissions chip ── */
+.header-btn.queued-chip {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+.header-btn.queued-chip:hover {
+  background: #fde68a;
+  color: #78350f;
+}
+
+/* ── Queued-submissions modal ── */
+.queued-modal {
+  max-width: 640px;
+  width: 90%;
+}
+.queued-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.queued-table th,
+.queued-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+.queued-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.queued-pass { color: #16a34a; font-weight: 600; }
+.queued-fail { color: #b45309; font-weight: 600; }
+.queued-console {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.queued-console-line { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+.queued-console-info  { color: #94a3b8; }
+.queued-console-ok    { color: #4ade80; }
+.queued-console-error { color: #fca5a5; }
 
 /* ── "New version available" banner (pinned at top of the app shell) ── */
 .update-banner {
