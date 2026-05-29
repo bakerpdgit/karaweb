@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { getQueuedResults } from '../utils/localStore.js';
+import { getQueuedResults, clearQueuedResults } from '../utils/localStore.js';
 import { flushQueueDetailed } from '../utils/resultQueue.js';
+import { useConfirmModal } from './ConfirmModal.jsx';
 
 /**
  * Manage-queued-submissions modal. Lists the items in the offline
@@ -17,6 +18,7 @@ export default function QueuedSubmissionsModal({ sessionKey, loadedCloudSave, on
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState([]);    // [{ kind, message }]
   const [summary, setSummary] = useState(null);
+  const { confirm, modal: confirmModalEl } = useConfirmModal();
 
   // Re-read on mount and after each retry so the count reflects reality.
   const refresh = () => {
@@ -27,6 +29,23 @@ export default function QueuedSubmissionsModal({ sessionKey, loadedCloudSave, on
 
   const append = (kind, message) => {
     setLog(prev => [...prev, { kind, message, at: new Date() }]);
+  };
+
+  const onClearAll = async () => {
+    if (busy || !sessionKey) return;
+    const count = items.length;
+    if (count === 0) return;
+    const ok = await confirm({
+      title: 'Delete all queued submissions?',
+      message: `Permanently remove ${count} queued submission${count === 1 ? '' : 's'} from this device. They will NOT be sent to the cloud.`,
+      confirmLabel: `Delete ${count}`,
+      variant: 'danger',
+    });
+    if (!ok) return;
+    clearQueuedResults(sessionKey);
+    refresh();
+    setSummary(null);
+    setLog([{ kind: 'info', message: `Deleted ${count} queued submission${count === 1 ? '' : 's'}.`, at: new Date() }]);
   };
 
   const onRetry = async () => {
@@ -59,6 +78,7 @@ export default function QueuedSubmissionsModal({ sessionKey, loadedCloudSave, on
   };
 
   return (
+    <>
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal queued-modal" onClick={e => e.stopPropagation()}>
         <h3 className="modal-title">Queued submissions</h3>
@@ -115,6 +135,13 @@ export default function QueuedSubmissionsModal({ sessionKey, loadedCloudSave, on
             Close
           </button>
           <button
+            className="btn-primary danger"
+            onClick={onClearAll}
+            disabled={busy || items.length === 0}
+          >
+            🗑 Delete all
+          </button>
+          <button
             className="btn-primary"
             onClick={onRetry}
             disabled={busy || items.length === 0}
@@ -124,5 +151,7 @@ export default function QueuedSubmissionsModal({ sessionKey, loadedCloudSave, on
         </div>
       </div>
     </div>
+    {confirmModalEl}
+    </>
   );
 }

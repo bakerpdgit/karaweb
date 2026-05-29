@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { parseKeyDetailsFile } from '../../utils/keyDetailsFile.js';
 import { setKeyDetails } from '../../utils/localStore.js';
 import RememberOnDeviceModal from '../RememberOnDeviceModal.jsx';
+import { useConfirmModal } from '../ConfirmModal.jsx';
 
 /**
  * Prompts the teacher to upload their keydetails file before letting
@@ -29,6 +30,19 @@ export default function TeacherKeyCheckModal({
   // until they answer; on Yes we write localStorage, on No we move on
   // session-only.
   const [rememberPrompt, setRememberPrompt] = useState(null);
+  const { confirm, modal: confirmModalEl } = useConfirmModal();
+
+  const onDetach = async () => {
+    const ok = await confirm({
+      title: 'Open as a detached book?',
+      message: 'Any encrypted (hidden) solutions will be permanently removed from this in-memory copy — you cannot recover them without the original keydetails. The cloud-save backend settings will also be cleared so submissions no longer go to the original teacher. You can then save the result as a fresh challenges file under a new keydetails. Continue?',
+      confirmLabel: 'Detach and open',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    dispatch({ type: 'CH_DETACH_AS_PLAIN' });
+    onSuccess?.();
+  };
 
   const onFile = async (e) => {
     const file = e.target.files?.[0];
@@ -85,38 +99,58 @@ export default function TeacherKeyCheckModal({
   const actionLabel = action === 'edit' ? 'editing challenges' : 'exiting challenge mode';
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal student-login" onClick={e => e.stopPropagation()}>
-        <h3 className="modal-title">Teacher verification required</h3>
-        <p className="modal-help">
-          Before {actionLabel}, please load your <strong>keydetails</strong> file so we can confirm you're
-          the teacher who created this challenges file. The file's public key
-          will be checked against the one embedded in this challenges book — if
-          they match, you're verified.
-        </p>
-        <p className="modal-help">
-          The file stays only in this browser; nothing is uploaded anywhere.
-        </p>
+    <>
+      <div className="modal-overlay" onClick={onCancel}>
+        <div className="modal student-login" onClick={e => e.stopPropagation()}>
+          <h3 className="modal-title">Teacher verification required</h3>
+          <p className="modal-help">
+            Before {actionLabel}, please load your <strong>keydetails</strong> file so we can confirm you're
+            the teacher who created this challenges file. The file's public key
+            will be checked against the one embedded in this challenges book — if
+            they match, you're verified.
+          </p>
+          <p className="modal-help">
+            The file stays only in this browser; nothing is uploaded anywhere.
+          </p>
 
-        <div className="modal-actions" style={{ marginTop: 12 }}>
-          <button
-            className="btn-primary"
-            disabled={busy}
-            onClick={() => fileInputRef.current?.click()}
-          >{busy ? 'Checking…' : 'Load keydetails file…'}</button>
-          <input
-            type="file"
-            accept=".txt,.json,text/plain,application/json"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            onChange={onFile}
-          />
-          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+          <div className="modal-actions" style={{ marginTop: 12 }}>
+            <button
+              className="btn-primary"
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+            >{busy ? 'Checking…' : 'Load keydetails file…'}</button>
+            <input
+              type="file"
+              accept=".txt,.json,text/plain,application/json"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              onChange={onFile}
+            />
+            <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+          </div>
+
+          {status?.message && (
+            <div className={`cl-status cl-status-${status.kind || ''}`}>{status.message}</div>
+          )}
+
+          {action === 'edit' && (
+            <>
+              <hr style={{ margin: '20px 0 12px', border: 0, borderTop: '1px solid #ddd' }} />
+              <p className="modal-help">
+                <strong>Lost your keydetails?</strong> You can still open this
+                as a plain (detached) book — encrypted solutions and the
+                cloud-save backend settings will be removed. Useful for
+                re-saving the challenges under a new keydetails, or for
+                sharing with another teacher who'll use their own keys.
+              </p>
+              <div className="modal-actions">
+                <button className="btn-secondary" onClick={onDetach} disabled={busy}>
+                  Open as detached book…
+                </button>
+              </div>
+            </>
+          )}
         </div>
-
-        {status?.message && (
-          <div className={`cl-status cl-status-${status.kind || ''}`}>{status.message}</div>
-        )}
       </div>
       {rememberPrompt && (
         <RememberOnDeviceModal
@@ -125,6 +159,7 @@ export default function TeacherKeyCheckModal({
           onNo={() => confirmRemember(false)}
         />
       )}
-    </div>
+      {confirmModalEl}
+    </>
   );
 }

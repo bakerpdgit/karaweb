@@ -710,6 +710,12 @@ function innerReducer(state, action) {
         appMode: state.appMode,
         fsm: action.fsm,
         worldTool: state.worldTool,
+        // User-wide persisted identity / config — independent of any loaded file.
+        keydetails:     state.keydetails,
+        classes:        state.classes,
+        classList:      state.classList,
+        cloudSave:      state.cloudSave,
+        studentSession: state.studentSession,
       }, action.world);
 
     // ── App mode & persistence ──────────────────────────────────────────────
@@ -1503,6 +1509,32 @@ function innerReducer(state, action) {
         scratchpadReturnInfo: null,
         loadedCloudSave: cs,
         cloudSave: nextCloudSave,
+      };
+    }
+
+    case 'CH_DETACH_AS_PLAIN': {
+      // Recovery path used when the teacher no longer has the keydetails
+      // that matches the loaded cloud-save book. Drops any encrypted
+      // (hidden) solutions and clears the cloud-save backend settings so
+      // the book becomes a plain editable challenges file that can be
+      // re-saved under a new keydetails file — or shared with another
+      // teacher who'll use their own keys. Stripping cloudSave also
+      // prevents a forwarded book from continuing to POST results to the
+      // original teacher's backend.
+      const detachedChallenges = (state.challenges || []).map(ch => {
+        if (!ch || ch.solutionAvailableToStudents !== false) return ch;
+        return {
+          ...ch,
+          solution: { fsm: null, blocks: null, python: '' },
+          solutionAvailableToStudents: true,
+        };
+      });
+      return {
+        ...state,
+        challenges: detachedChallenges,
+        loadedCloudSave: null,
+        cloudSave: { ...initialState.cloudSave },
+        challengeFileGuid: '',
       };
     }
 
