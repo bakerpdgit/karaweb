@@ -249,6 +249,9 @@ function makeChallenge(world, name, mode = 'blocks', options = {}) {
     // direction — the world matches as long as Kara stands on the
     // right cell with the right cell-contents.
     ignoreOrientation: false,
+    // Block types removed from the Blockly toolbox for this challenge.
+    // Empty / missing = every block allowed (backwards-compatible default).
+    disallowedBlocks: [],
   };
 }
 
@@ -1127,6 +1130,18 @@ function innerReducer(state, action) {
           c.id === action.id ? { ...c, ignoreOrientation: !!action.ignore } : c
         ),
       };
+
+    case 'CH_SET_DISALLOWED_BLOCKS': {
+      const next = Array.isArray(action.disallowedBlocks)
+        ? Array.from(new Set(action.disallowedBlocks.filter(t => typeof t === 'string')))
+        : [];
+      return {
+        ...state,
+        challenges: state.challenges.map(c =>
+          c.id === action.id ? { ...c, disallowedBlocks: next } : c
+        ),
+      };
+    }
 
     case 'CH_SET_SOL_VISIBILITY':
       // Set the per-challenge visibility flag and (atomically) replace

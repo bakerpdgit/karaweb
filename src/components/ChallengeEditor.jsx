@@ -5,6 +5,7 @@ import CloudSavePanel from './cloudsave/CloudSavePanel.jsx';
 import AnalysePanel from './analyse/AnalysePanel.jsx';
 import { useConfirmModal } from './ConfirmModal.jsx';
 import { newGuid } from '../utils/guid.js';
+import AllowedBlocksModal from './AllowedBlocksModal.jsx';
 // Note: the checkpoint controls + the notes editor used to live in
 // this file's ChallengesTab — they have been moved into
 // ChallengeCheckpointBar (rendered above the world in App.jsx) and
@@ -123,6 +124,7 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
   const renameRef = useRef(null);
   const [renameDraft, setRenameDraft] = useState(editing?.name ?? '');
   const { confirm, modal } = useConfirmModal();
+  const [allowedBlocksOpen, setAllowedBlocksOpen] = useState(false);
 
   React.useEffect(() => {
     setRenameDraft(editing?.name ?? '');
@@ -253,6 +255,18 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
                 />
                 Ignore Kara's final orientation
               </label>
+              {(editing.mode === 'blocks' || editing.allowModeChange) && (
+                <button
+                  type="button"
+                  className="header-btn"
+                  title="Restrict which Blockly blocks the student sees in the toolbox for this challenge"
+                  onClick={() => setAllowedBlocksOpen(true)}
+                >
+                  {(editing.disallowedBlocks?.length ?? 0) > 0
+                    ? `Allowed blocks (${editing.disallowedBlocks.length} disabled)…`
+                    : 'Allowed blocks…'}
+                </button>
+              )}
             </div>
             <p className="challenge-edit-help">
               Paint each checkpoint world on the left; write the <strong>{editing.mode}</strong>
@@ -264,6 +278,16 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
           </div>
         )}
       </div>
+      {allowedBlocksOpen && editing && (
+        <AllowedBlocksModal
+          disallowedBlocks={editing.disallowedBlocks ?? []}
+          onSave={(next) => {
+            dispatch({ type: 'CH_SET_DISALLOWED_BLOCKS', id: editing.id, disallowedBlocks: next });
+            setAllowedBlocksOpen(false);
+          }}
+          onCancel={() => setAllowedBlocksOpen(false)}
+        />
+      )}
     </>
   );
 }

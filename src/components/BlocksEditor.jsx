@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks';
-import { toolboxJson } from '../python/blocks/toolbox.js';
+import { toolboxJson, filterToolbox } from '../python/blocks/toolbox.js';
 import { initBlocks } from '../python/blocks/pythonGenerator.js';
 import RunnerOutputPanel from './RunnerOutputPanel.jsx';
 import { countBlocks } from '../utils/codeLimits.js';
@@ -10,7 +10,7 @@ import { useConfirmModal } from './ConfirmModal.jsx';
 // Initialise our custom block defs once at module load.
 initBlocks();
 
-export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, readOnly = false, blocksCap = null }) {
+export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, readOnly = false, blocksCap = null, disallowedBlocks = [] }) {
   const userRef = useRef(null);
   const userWorkspaceRef = useRef(null);
   const lastHighlightedRef = useRef(null);
@@ -20,6 +20,10 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
   useEffect(() => { blocksCapRef.current = blocksCap; }, [blocksCap]);
   const lastValidRef = useRef(null);
   const { alert: showAlert, modal: alertModal } = useConfirmModal();
+  // Stable string key for the disallowed-blocks list — used in the
+  // live-update effect's deps so we only react when the SET changes,
+  // not on every parent re-render.
+  const disallowedKey = disallowedBlocks.join('|');
 
   // ── User workspace ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -30,7 +34,7 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
       // mutate of existing blocks. We still allow zoom + scroll so the
       // user can inspect.
       readOnly,
-      toolbox: readOnly ? null : toolboxJson,
+      toolbox: readOnly ? null : filterToolbox(toolboxJson, disallowedBlocks),
       trashcan: !readOnly,
       zoom: { controls: true, wheel: false, startScale: 0.95 },
       grid: { spacing: 20, length: 3, colour: '#ccc', snap: true },
@@ -125,6 +129,20 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live-update the toolbox when the teacher toggles disallowed blocks
+  // via the management modal. Skip in read-only mode (no toolbox there).
+  useEffect(() => {
+    if (readOnly) return;
+    const ws = userWorkspaceRef.current;
+    if (!ws) return;
+    try {
+      ws.updateToolbox(filterToolbox(toolboxJson, disallowedBlocks));
+    } catch (e) {
+      console.warn('Failed to update toolbox:', e);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disallowedKey, readOnly]);
 
   // ── Block highlighting (current step) ─────────────────────────────────────
   useEffect(() => {

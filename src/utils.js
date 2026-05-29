@@ -479,6 +479,9 @@ export function parseSaveData(raw) {
       noCheckTarget: !!withCheckpoints.noCheckTarget,
       ignoreOrientation: !!withCheckpoints.ignoreOrientation,
       limits,
+      disallowedBlocks: Array.isArray(withCheckpoints.disallowedBlocks)
+        ? withCheckpoints.disallowedBlocks.filter(t => typeof t === 'string')
+        : [],
     };
   });
 

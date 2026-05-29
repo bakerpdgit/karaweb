@@ -1128,6 +1128,7 @@ export default function App() {
                   blocks={blocks} runner={runner}
                   dispatch={dispatch} pythonRunner={pythonRunner}
                   readOnly={readOnly} blocksCap={blocksCap}
+                  disallowedBlocks={contextChallenge?.disallowedBlocks ?? []}
                 />
               );
             }
