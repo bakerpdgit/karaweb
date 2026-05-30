@@ -307,6 +307,7 @@ export function buildSaveData(opts) {
   const {
     world, fsm, appMode, blocklyState, pythonCode, pythonFontSize, name,
     challenges, challengeWork, cloudSave, challengeFileGuid,
+    userProgress,  // optional { bookGuid, userSlot, updatedAt, challenges } — opt-in via "Save progress" menu item
   } = opts;
   const base = {
     karaWebVersion: 5,
@@ -371,6 +372,17 @@ export function buildSaveData(opts) {
     if (base.cloudSave && cloudSave.turnstileSiteKey) {
       base.cloudSave.turnstileSiteKey = cloudSave.turnstileSiteKey;
     }
+  }
+  // Optional embedded student progress (added by the "Save progress"
+  // menu action). Backwards-compatible: older clients ignore the
+  // unknown field.
+  if (userProgress && userProgress.challenges && Object.keys(userProgress.challenges).length > 0) {
+    base.userProgress = {
+      bookGuid:   userProgress.bookGuid   ?? challengeFileGuid ?? '',
+      userSlot:   userProgress.userSlot   ?? 'anon',
+      updatedAt:  userProgress.updatedAt  ?? new Date().toISOString(),
+      challenges: userProgress.challenges,
+    };
   }
   return base;
 }
@@ -478,6 +490,7 @@ export function parseSaveData(raw) {
       solutionAvailableToStudents: visible,
       noCheckTarget: !!withCheckpoints.noCheckTarget,
       ignoreOrientation: !!withCheckpoints.ignoreOrientation,
+      endOnTargetNotRequired: !!withCheckpoints.endOnTargetNotRequired,
       limits,
       disallowedBlocks: Array.isArray(withCheckpoints.disallowedBlocks)
         ? withCheckpoints.disallowedBlocks.filter(t => typeof t === 'string')
@@ -525,8 +538,28 @@ export function parseSaveData(raw) {
       ? String(raw.challengeFileGuid)
       : (cloudSave?.challengeFileGuid || '');
 
+  // Optional embedded student progress (added by "Save progress" export).
+  // Only honoured when the bookGuid in the progress payload matches the
+  // file's own challengeFileGuid — guards against pasted-in mismatched
+  // progress blobs.
+  let userProgress = null;
+  if (raw.userProgress
+      && typeof raw.userProgress === 'object'
+      && raw.userProgress.challenges
+      && typeof raw.userProgress.challenges === 'object'
+      && raw.userProgress.bookGuid
+      && raw.userProgress.bookGuid === challengeFileGuid) {
+    userProgress = {
+      bookGuid:  String(raw.userProgress.bookGuid),
+      userSlot:  String(raw.userProgress.userSlot || 'anon'),
+      updatedAt: String(raw.userProgress.updatedAt || ''),
+      challenges: raw.userProgress.challenges,
+    };
+  }
+
   return {
     world, fsm, appMode, blocklyState, pythonCode, pythonFontSize,
     challenges, challengeWork, cloudSave, challengeFileGuid,
+    userProgress,
   };
 }

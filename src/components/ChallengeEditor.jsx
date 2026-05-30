@@ -255,6 +255,14 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
                 />
                 Ignore Kara's final orientation
               </label>
+              <label className="challenge-allow-mode" title="When ticked, Kara just needs to pass through the target world at some point during execution (intermediates still in order). Default off — Kara must end on the target.">
+                <input
+                  type="checkbox"
+                  checked={!!editing.endOnTargetNotRequired}
+                  onChange={e => dispatch({ type: 'CH_SET_END_ON_TARGET_NOT_REQUIRED', id: editing.id, value: e.target.checked })}
+                />
+                End on target not required
+              </label>
               {(editing.mode === 'blocks' || editing.allowModeChange) && (
                 <button
                   type="button"

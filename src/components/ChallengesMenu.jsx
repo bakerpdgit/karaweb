@@ -10,6 +10,10 @@ export default function ChallengesMenu({
   onRequestExit,
   onRequestEnterEditor,
   gated = false,
+  bookProgress = null,        // { challenges: { [guid]: { passed, attempts } } } | null
+  hasAnyProgress = false,      // true when any user-slot has progress for this book
+  onResetBookProgress = null,  // () => void — opens the confirm in App.jsx
+  onSaveBookProgress = null,   // () => void — exports book + embedded progress to a file
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -70,16 +74,24 @@ export default function ChallengesMenu({
           {challenges.length === 0 && (
             <div className="panels-menu-item disabled">No challenges yet.</div>
           )}
-          {challenges.map(c => (
-            <button
-              key={c.id}
-              className={`panels-menu-item ${currentChallengeId === c.id ? 'checked' : ''}`}
-              onClick={() => select(c.id)}
-            >
-              {currentChallengeId === c.id ? '●' : '○'} {c.name}
-              <span className="challenges-mode-tag">{c.mode}</span>
-            </button>
-          ))}
+          {challenges.map(c => {
+            const stored = bookProgress?.challenges?.[c.guid];
+            const passed   = stored?.passed === true;
+            const attempted = !passed && (stored?.attempts || 0) > 0;
+            return (
+              <button
+                key={c.id}
+                className={`panels-menu-item ${currentChallengeId === c.id ? 'checked' : ''}`}
+                onClick={() => select(c.id)}
+                title={passed ? 'Passed' : (attempted ? 'Attempted, not passed' : 'Not attempted yet')}
+              >
+                {currentChallengeId === c.id ? '●' : '○'} {c.name}
+                {passed && <span className="challenges-progress-tag passed" title="Passed">✓</span>}
+                {attempted && <span className="challenges-progress-tag attempted" title="Attempted">·</span>}
+                <span className="challenges-mode-tag">{c.mode}</span>
+              </button>
+            );
+          })}
           {(currentChallengeId || challengeEditor) && (
             <button className="panels-menu-item" onClick={exit}>
               {challengeEditor ? '⛔ Exit editor' : `⛔ Exit challenge${gated ? ' 🔒' : ''}`}
@@ -89,6 +101,23 @@ export default function ChallengesMenu({
           <button className="panels-menu-item" onClick={enterEditor}>
             ✏️ Edit / manage challenges…{gated ? ' 🔒' : ''}
           </button>
+          {hasAnyProgress && onSaveBookProgress && (
+            <button
+              className="panels-menu-item"
+              onClick={() => { setOpen(false); onSaveBookProgress(); }}
+              title="Download a copy of this book with your saved progress and code embedded — re-open it on any device to restore"
+            >
+              💾 Save progress…
+            </button>
+          )}
+          {hasAnyProgress && onResetBookProgress && (
+            <button
+              className="panels-menu-item"
+              onClick={() => { setOpen(false); onResetBookProgress(); }}
+            >
+              🗑 Reset book progress…
+            </button>
+          )}
         </div>
       )}
     </div>

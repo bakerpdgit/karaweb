@@ -16,7 +16,7 @@ import React, { useState } from 'react';
  * onClose(dontShowAgain) is invoked when the teacher dismisses the
  * slideshow (close button, Got it on the last slide, or click-out).
  */
-export default function WelcomeSlideshow({ onClose }) {
+export default function WelcomeSlideshow({ onClose, onOpenTutorial }) {
   const [i, setI] = useState(0);
   const [dontShow, setDontShow] = useState(false);
   const slide = SLIDES[i];
@@ -75,6 +75,14 @@ export default function WelcomeSlideshow({ onClose }) {
             )}
           </div>
         </footer>
+        {isLast && onOpenTutorial && (
+          <div className="welcome-teacher-note">
+            📖 More detail in the{' '}
+            <button type="button" className="cs-link" onClick={onOpenTutorial}>
+              Teacher tutorial
+            </button>{' '}— end-to-end walkthrough.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useState, useCallback, useRef } from 'react';
+import React, { useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSequence, worldsEqual } from './store.js';
 import { buildSaveData, downloadJSON, parseSaveData } from './utils.js';
 import { INTRO_NOTES, EXAMPLES } from './examples.js';
@@ -12,6 +12,12 @@ import SensorDisplay from './components/SensorDisplay.jsx';
 import VariablesDisplay from './components/VariablesDisplay.jsx';
 import ExecutionLog from './components/ExecutionLog.jsx';
 import AboutModal from './components/AboutModal.jsx';
+import TutorialModal from './components/TutorialModal.jsx';
+import { TUTORIAL_CHAPTERS, DEFAULT_TUTORIAL_SLUG } from './tutorial/index.js';
+import {
+  resolveUserSlot, getBookProgress, saveChallengeRun, saveChallengeResult,
+  clearBookProgress, listBookProgressSlots, importBookProgress,
+} from './utils/bookProgress.js';
 import SaveDialog from './components/SaveDialog.jsx';
 import NotesPanel from './components/NotesPanel.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
@@ -34,6 +40,7 @@ import KeydetailsPasswordModal from './components/cloudsave/KeydetailsPasswordMo
 import WelcomeSlideshow from './components/WelcomeSlideshow.jsx';
 import MainWelcomeSlideshow from './components/MainWelcomeSlideshow.jsx';
 import UpdateBanner from './components/UpdateBanner.jsx';
+import { useConfirmModal } from './components/ConfirmModal.jsx';
 import { checkForUpdate } from './utils/updateCheck.js';
 import QueuedResultsChip from './components/QueuedResultsChip.jsx';
 import QueuedSubmissionsModal from './components/QueuedSubmissionsModal.jsx';
@@ -77,6 +84,8 @@ export default function App() {
   );
   const [editTarget, setEditTarget]     = useState(null);
   const [showAbout, setShowAbout]       = useState(false);
+  // Teacher tutorial modal. Null = closed; string = open at that chapter slug.
+  const [tutorialSlug, setTutorialSlug] = useState(null);
   const [showSave, setShowSave]         = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loadError, setLoadError]       = useState(null);
@@ -131,6 +140,97 @@ export default function App() {
   // Whichever challenge is in scope for the side panels (notes + target).
   const contextChallenge = editingChallenge ?? activeChallenge;
 
+  // ── Per-book localStorage progress ───────────────────────────────────
+  // bookGuid identifies the loaded book; userSlot scopes progress to
+  // each student (their 6-digit cloud code, or 'anon' when not logged in).
+  const bookGuid = loadedCloudSave?.challengeFileGuid || challengeFileGuid || '';
+  const userSlot = useMemo(() => resolveUserSlot(studentSession), [studentSession?.studentCode]);
+  // Bumped after every save/reset so the cached read re-runs and the
+  // UI (ChallengesMenu indicators) re-renders.
+  const [progressTick, setProgressTick] = useState(0);
+  const bookProgress = useMemo(() => {
+    if (!bookGuid) return null;
+    return getBookProgress(bookGuid, userSlot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookGuid, userSlot, progressTick]);
+  const hasAnyProgress = useMemo(() => {
+    if (!bookGuid) return false;
+    return listBookProgressSlots(bookGuid).length > 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookGuid, progressTick]);
+
+  // Keep latest studentSession in a ref so async callbacks (e.g. the
+  // restore-from-file prompt) can read the current slot without
+  // re-creating their parent useCallbacks on every change.
+  const studentSessionRef = useRef(studentSession);
+  useEffect(() => { studentSessionRef.current = studentSession; }, [studentSession]);
+
+  // Hydrate `challengeWork` from localStorage whenever the book identity
+  // or the active user-slot changes. Replaces in-memory work entirely
+  // so a slot switch doesn't carry the previous student's code over.
+  useEffect(() => {
+    if (!bookGuid) return;
+    const progress = getBookProgress(bookGuid, userSlot);
+    const workMap = {};
+    if (progress?.challenges) {
+      for (const ch of challenges) {
+        const stored = progress.challenges[ch.guid];
+        if (stored?.code) workMap[ch.id] = stored.code;
+      }
+    }
+    dispatch({ type: 'CH_HYDRATE_WORK', workMap, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookGuid, userSlot]);
+
+  // Confirm modal used by the "Reset book progress" action.
+  const { confirm: confirmAction, modal: confirmModalEl } = useConfirmModal();
+  const requestResetBookProgress = useCallback(async () => {
+    if (!bookGuid) return;
+    const ok = await confirmAction({
+      title: 'Reset book progress?',
+      message: 'This wipes all locally-stored code and pass marks for this book of challenges across ALL students who have used this browser. It does NOT affect any results already submitted to the cloud.',
+      confirmLabel: 'Reset',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    clearBookProgress(bookGuid);
+    dispatch({ type: 'CH_RESET_BOOK_PROGRESS' });
+    setProgressTick(t => t + 1);
+  }, [bookGuid, confirmAction]);
+
+  // Save-progress export: build the book file with the current user's
+  // progress embedded as `userProgress`. Re-opening the file on any
+  // device prompts the user to restore — see the import path in
+  // loadParsedJson.
+  const handleSaveBookProgress = useCallback(() => {
+    if (!bookGuid) return;
+    const progress = getBookProgress(bookGuid, userSlot);
+    if (!progress?.challenges || Object.keys(progress.challenges).length === 0) return;
+    const snap = getSaveState(state);
+    const filename = `karaweb_progress_${userSlot}`;
+    downloadJSON(
+      buildSaveData({
+        world: snap.world,
+        fsm:   snap.fsm,
+        appMode: snap.appMode,
+        blocklyState:   snap.blocks?.blocklyState ?? null,
+        pythonCode:     snap.python?.code ?? '',
+        pythonFontSize: snap.python?.fontSize ?? 14,
+        name:           filename,
+        challenges:     snap.challenges,
+        challengeWork:  snap.challengeWork,
+        cloudSave:      loadedCloudSave ?? null,
+        challengeFileGuid: bookGuid,
+        userProgress: {
+          bookGuid, userSlot,
+          updatedAt: progress.updatedAt || new Date().toISOString(),
+          challenges: progress.challenges,
+        },
+      }),
+      filename,
+    );
+  }, [bookGuid, userSlot, state, loadedCloudSave]);
+
   const pythonRunner = usePythonRunner({ appMode, world, sim, dispatch });
 
   // FSM-mode auto-run interval; python modes are driven by the worker itself.
@@ -157,6 +257,48 @@ export default function App() {
       dispatch({ type: 'CH_CHECK_RESULT' });
     }
   }, [currentChallengeId, challengeEditor, editingChallengeId, challengeResult, appMode, sim.mode, sim.savedWorld, runner.status]);
+
+  // ── Progress save: code snapshot at run-start ────────────────────────
+  // Watches sim.mode + runner.status for the transition into a running
+  // state. On the rising edge, snapshot the active mode's code for the
+  // active student challenge and persist to localStorage.
+  const wasRunningRef = useRef(false);
+  useEffect(() => {
+    const isRunning = sim.mode === 'running' || runner.status === 'running';
+    const wasRunning = wasRunningRef.current;
+    wasRunningRef.current = isRunning;
+    if (!isRunning || wasRunning) return;
+    // Only record runs against the student's currentChallenge (not the
+    // teacher's editor sanity-run, not the scratchpad).
+    if (!currentChallengeId || challengeEditor || scratchpadChallenge) return;
+    const ch = challenges.find(c => c.id === currentChallengeId);
+    if (!ch || !bookGuid || !ch.guid) return;
+    const code = { fsm: null, blocks: null, python: '' };
+    if (appMode === 'fsm')    code.fsm    = fsm;
+    if (appMode === 'blocks') code.blocks = blocks.blocklyState;
+    if (appMode === 'python') code.python = python.code;
+    saveChallengeRun(bookGuid, userSlot, ch.guid, code);
+    setProgressTick(t => t + 1);
+  }, [sim.mode, runner.status, currentChallengeId, challengeEditor, scratchpadChallenge,
+      challenges, bookGuid, userSlot, appMode, fsm, blocks.blocklyState, python.code]);
+
+  // ── Progress save: pass/fail at result-time ──────────────────────────
+  // Watches challengeResult for the transition from null to non-null;
+  // persists the outcome to localStorage. The preceding run-start
+  // effect has already stored the code snapshot — this just updates
+  // the `passed` flag on the same entry.
+  const lastResultRef = useRef(null);
+  useEffect(() => {
+    const prev = lastResultRef.current;
+    lastResultRef.current = challengeResult;
+    if (!challengeResult || challengeResult === prev) return;
+    if (!currentChallengeId || challengeEditor || scratchpadChallenge) return;
+    const ch = challenges.find(c => c.id === currentChallengeId);
+    if (!ch || !bookGuid || !ch.guid) return;
+    saveChallengeResult(bookGuid, userSlot, ch.guid, challengeResult === 'success');
+    setProgressTick(t => t + 1);
+  }, [challengeResult, currentChallengeId, challengeEditor, scratchpadChallenge,
+      challenges, bookGuid, userSlot]);
 
   // ── Checkpoint progression tracking ──────────────────────────────────
   // While a challenge is running we watch the world after each change
@@ -677,8 +819,37 @@ export default function App() {
         dispatch({ type: 'CH_SELECT', id: firstChallenge.id });
       }
     }
+    // If the file embeds saved progress, prompt the student to restore
+    // it into this device's localStorage. Deferred to a microtask so
+    // the CH_REPLACE_ALL + initial hydrate from existing localStorage
+    // have settled first — the prompt then sees a fully-loaded UI
+    // behind it.
+    if (parsed.userProgress?.bookGuid && parsed.userProgress?.challenges) {
+      const fileProgress = parsed.userProgress;
+      const fileChallenges = parsed.challenges || [];
+      Promise.resolve().then(async () => {
+        const ok = await confirmAction({
+          title: 'Saved progress detected',
+          message: 'This file includes saved progress (your code and pass marks). Restore it to this device? If you skip, the existing progress on this browser (if any) is kept untouched.',
+          confirmLabel: 'Restore',
+          cancelLabel:  'Skip',
+          variant: 'primary',
+        });
+        if (!ok) return;
+        const slot = resolveUserSlot(studentSessionRef.current);
+        importBookProgress(fileProgress.bookGuid, slot, fileProgress.challenges);
+        const workMap = {};
+        for (const ch of fileChallenges) {
+          const stored = fileProgress.challenges[ch.guid];
+          if (stored?.code) workMap[ch.id] = stored.code;
+        }
+        dispatch({ type: 'CH_HYDRATE_WORK', workMap, replace: true });
+        setProgressTick(t => t + 1);
+      });
+    }
     setLoadError(null);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmAction]);
 
   const handleFileChange = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -716,6 +887,15 @@ export default function App() {
     // the page reloads the same challenges. The teacher (if it's
     // their own keys + file) sees no extra friction.
   }, [loadParsedJson]);
+
+  // ── Deep-link loader: ?tutorial=<chapter-slug> on boot ──────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('tutorial');
+    if (!slug) return;
+    const known = TUTORIAL_CHAPTERS.some(c => c.slug === slug);
+    setTutorialSlug(known ? slug : DEFAULT_TUTORIAL_SLUG);
+  }, []);
 
   // Loading an example installs it as a one-challenge "book" so the
   // student gets pass/fail + Show solution semantics for free, using
@@ -858,6 +1038,10 @@ export default function App() {
             onRequestExit={requestExitChallenge}
             onRequestEnterEditor={requestEnterEditor}
             gated={!!loadedCloudSave?.publicKeyJwk?.n && !teacherKeysMatch}
+            bookProgress={bookProgress}
+            hasAnyProgress={hasAnyProgress}
+            onResetBookProgress={requestResetBookProgress}
+            onSaveBookProgress={handleSaveBookProgress}
           />
 
           <div className="header-sep" />
@@ -869,6 +1053,10 @@ export default function App() {
           <button className="header-btn" title="Settings"
             onClick={() => setShowSettings(true)}>
             ⚙ Settings
+          </button>
+          <button className="header-btn" title="Teacher tutorial — how everything fits together"
+            onClick={() => setTutorialSlug(DEFAULT_TUTORIAL_SLUG)}>
+            📖 Tutorial
           </button>
           <button className="header-btn about-btn" title="About KaraWeb"
             onClick={() => setShowAbout(true)}>
@@ -1100,7 +1288,7 @@ export default function App() {
           {(() => {
             const ctxKey = challengeEditor
               ? `edit-${editingChallengeId ?? 'none'}-${editingTarget ?? 'starter'}-${state.editorRefreshTick ?? 0}`
-              : `play-${currentChallengeId ?? 'default'}${sim.showingSolution ? '-sol' : ''}`;
+              : `play-${currentChallengeId ?? 'default'}${sim.showingSolution ? '-sol' : ''}-${state.editorRefreshTick ?? 0}`;
             // `readOnly` is set when the student is viewing the
             // reference solution. Teachers in edit mode are never
             // read-only — they're always editing either starter or
@@ -1188,6 +1376,13 @@ export default function App() {
             : null} />
       )}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {tutorialSlug && (
+        <TutorialModal
+          initialSlug={tutorialSlug}
+          onClose={() => setTutorialSlug(null)}
+        />
+      )}
+      {confirmModalEl}
       {showSave  && (
         <SaveDialog
           onSave={handleSave}
@@ -1254,6 +1449,10 @@ export default function App() {
             if (dontShow) setWelcomeShown(true);
             setShowWelcome(false);
           }}
+          onOpenTutorial={() => {
+            setShowWelcome(false);
+            setTutorialSlug(DEFAULT_TUTORIAL_SLUG);
+          }}
         />
       )}
       {showMainWelcome && (
@@ -1261,6 +1460,10 @@ export default function App() {
           onClose={(dontShow) => {
             if (dontShow) setMainWelcomeShown(true);
             setShowMainWelcome(false);
+          }}
+          onOpenTutorial={() => {
+            setShowMainWelcome(false);
+            setTutorialSlug(DEFAULT_TUTORIAL_SLUG);
           }}
         />
       )}

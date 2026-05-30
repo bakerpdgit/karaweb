@@ -11,7 +11,7 @@ import React, { useState } from 'react';
  * onClose(dontShowAgain) is invoked when the user dismisses the
  * slideshow (close button, Got it on the last slide, or click-out).
  */
-export default function MainWelcomeSlideshow({ onClose }) {
+export default function MainWelcomeSlideshow({ onClose, onOpenTutorial }) {
   const [i, setI] = useState(0);
   const [dontShow, setDontShow] = useState(true);   // default ticked
   const slide = SLIDES[i];
@@ -70,6 +70,15 @@ export default function MainWelcomeSlideshow({ onClose }) {
             )}
           </div>
         </footer>
+        {isLast && onOpenTutorial && (
+          <div className="welcome-teacher-note">
+            👩‍🏫 Teacher? Read the{' '}
+            <button type="button" className="cs-link" onClick={onOpenTutorial}>
+              Teacher tutorial
+            </button>{' '}
+            for a full walkthrough.
+          </div>
+        )}
       </div>
     </div>
   );

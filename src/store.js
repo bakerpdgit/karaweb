@@ -249,6 +249,11 @@ function makeChallenge(world, name, mode = 'blocks', options = {}) {
     // direction — the world matches as long as Kara stands on the
     // right cell with the right cell-contents.
     ignoreOrientation: false,
+    // If true, the student passes as long as Kara touches the target
+    // world at some point during execution (after intermediates in
+    // order); she does not have to END on the target. Default false
+    // (strict: program must halt with Kara on the target world).
+    endOnTargetNotRequired: false,
     // Block types removed from the Blockly toolbox for this challenge.
     // Empty / missing = every block allowed (backwards-compatible default).
     disallowedBlocks: [],
@@ -1131,6 +1136,14 @@ function innerReducer(state, action) {
         ),
       };
 
+    case 'CH_SET_END_ON_TARGET_NOT_REQUIRED':
+      return {
+        ...state,
+        challenges: state.challenges.map(c =>
+          c.id === action.id ? { ...c, endOnTargetNotRequired: !!action.value } : c
+        ),
+      };
+
     case 'CH_SET_DISALLOWED_BLOCKS': {
       const next = Array.isArray(action.disallowedBlocks)
         ? Array.from(new Set(action.disallowedBlocks.filter(t => typeof t === 'string')))
@@ -1449,7 +1462,17 @@ function innerReducer(state, action) {
       while (reached < lastIdx && worldsEqual(state.world, seq[reached + 1], cmpOpts)) {
         reached += 1;
       }
-      const ok = reached >= lastIdx;
+      const reachedTarget = reached >= lastIdx;
+      // Default (strict): Kara must end on the target — checkpointIdx
+      // reached the target AND the final world still matches. Opt-in:
+      // `endOnTargetNotRequired` relaxes this so passing through the
+      // target during execution is enough (Kara can keep moving
+      // afterwards). Intermediates still have to be touched in order
+      // either way (that's what advancing `reached` to `lastIdx`
+      // guarantees).
+      const ok = ch.endOnTargetNotRequired
+        ? reachedTarget
+        : reachedTarget && worldsEqual(state.world, seq[lastIdx], cmpOpts);
       return {
         ...state,
         sim: { ...state.sim, checkpointIdx: reached },
@@ -1555,6 +1578,53 @@ function innerReducer(state, action) {
 
     case 'CH_FILE_GUID_SET':
       return { ...state, challengeFileGuid: action.guid || '' };
+
+    case 'CH_HYDRATE_WORK': {
+      // Merge (or replace) a workMap (challenge id → { fsm, blocks,
+      // python }) into the in-memory challengeWork. Used to restore
+      // code from localStorage after a book load, after the active
+      // user-slot changes (STUDENT_LOGIN / STUDENT_LOGOUT), or after
+      // file-based progress import.
+      const incoming = action.workMap && typeof action.workMap === 'object' ? action.workMap : {};
+      const base = action.replace ? {} : state.challengeWork;
+      const merged = { ...base };
+      for (const [id, code] of Object.entries(incoming)) {
+        if (code) merged[id] = code;
+      }
+      // Bump the refresh tick so the right-hand editor remounts via
+      // its ctxKey and rebuilds its Blockly / Monaco workspace from
+      // the just-loaded code (workspace internals don't auto-react to
+      // a state.blocks.blocklyState prop change otherwise).
+      let next = {
+        ...state,
+        challengeWork: merged,
+        editorRefreshTick: (state.editorRefreshTick ?? 0) + 1,
+      };
+      // If a challenge is currently active, re-load it so its editor
+      // state reflects the (possibly just-restored) work for its mode.
+      if (next.currentChallengeId && !next.challengeEditor) {
+        const ch = next.challenges.find(c => c.id === next.currentChallengeId);
+        if (ch) next = loadChallenge(next, ch);
+      }
+      return next;
+    }
+
+    case 'CH_RESET_BOOK_PROGRESS': {
+      // Wipe in-session work. The caller is responsible for clearing
+      // localStorage (via clearBookProgress(...)). If a challenge is
+      // currently active, re-load it from starter so the editor visibly
+      // resets.
+      let next = {
+        ...state,
+        challengeWork: {},
+        editorRefreshTick: (state.editorRefreshTick ?? 0) + 1,
+      };
+      if (next.currentChallengeId && !next.challengeEditor) {
+        const ch = next.challenges.find(c => c.id === next.currentChallengeId);
+        if (ch) next = loadChallenge(next, ch);
+      }
+      return next;
+    }
 
     case 'CH_OPEN_SCRATCHPAD': {
       // Build a temporary "scratchpad" challenge from a source challenge
