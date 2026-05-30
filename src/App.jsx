@@ -2,6 +2,7 @@ import React, { useReducer, useEffect, useState, useCallback, useRef, useMemo } 
 import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSequence, worldsEqual } from './store.js';
 import { buildSaveData, downloadJSON, parseSaveData } from './utils.js';
 import { INTRO_NOTES, EXAMPLES } from './examples.js';
+import introToProgramming1 from '../dist-content/intro-to-programming-book-1.json';
 import WorldEditor from './components/WorldEditor.jsx';
 import WorldThumbnail from './components/WorldThumbnail.jsx';
 import ChallengeContextPanel from './components/ChallengeContextPanel.jsx';
@@ -903,6 +904,17 @@ export default function App() {
   // (Pre-Phase-C, examples loaded only a world + seeded all three
   // mode editors with the reference solutions.)
   const handleExampleSelect = useCallback((id) => {
+    // Bundled multi-challenge books (loaded the same way as opening a
+    // teacher-shared .json file). The "book:" prefix keeps them
+    // distinct from the single-challenge EXAMPLES entries.
+    if (id === 'book:intro1') {
+      try {
+        loadParsedJson(JSON.parse(JSON.stringify(introToProgramming1)));
+      } catch (err) {
+        setLoadError(err.message);
+      }
+      return;
+    }
     const ex = EXAMPLES.find(e => e.id === id);
     if (!ex) return;
     try {
@@ -923,7 +935,7 @@ export default function App() {
     } catch (err) {
       setLoadError(err.message);
     }
-  }, []);
+  }, [loadParsedJson]);
 
   const handleHSplitDrag = useCallback((e) => {
     e.preventDefault();
@@ -1007,6 +1019,8 @@ export default function App() {
             {EXAMPLES.map(ex => (
               <option key={ex.id} value={ex.id}>{ex.name}</option>
             ))}
+            <option disabled>──────── Books ────────</option>
+            <option value="book:intro1">📘 Introduction to Programming 1</option>
           </select>
 
           <div className="panels-menu-wrap" ref={panelsMenuRef}>

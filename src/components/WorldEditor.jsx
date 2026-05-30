@@ -100,15 +100,15 @@ export function LeafCornerBadge({ size }) {
 
 // ── Cell ─────────────────────────────────────────────────────────────────────
 
-function WorldCell({ cell, isKara, karaDir, highlight, wrapSide, simMode, tool, onClick, onEnter, cellSize }) {
+function WorldCell({ cell, isKara, karaDir, highlight, edgeSides, simMode, tool, onClick, onEnter, cellSize }) {
   const bgClass = [
     'world-cell',
+    ...(edgeSides || []).map(side => `wrap-from-${side}`),
     cell.hasLeaf ? 'has-leaf' : '',
     highlight === 'front' ? 'sensor-front' : '',
     highlight === 'left'  ? 'sensor-left'  : '',
     highlight === 'right' ? 'sensor-right' : '',
     highlight === 'kara'  ? 'sensor-kara'  : '',
-    wrapSide ? `wrap-from-${wrapSide}` : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -199,7 +199,6 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
   // surface this as a subtle dashed-edge chevron so the toroidal
   // geometry isn't silently confusing.
   const highlights = {};
-  const wrapFrom = {};   // cellKey → 'left'|'right'|'top'|'bottom'
   if (sensors) {
     const kp = `${world.kara.x},${world.kara.y}`;
     highlights[kp] = 'kara';
@@ -208,19 +207,16 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
       { dir: turnLeft(world.kara.direction),  pos: sensors._leftPos,  kind: 'left'  },
       { dir: turnRight(world.kara.direction), pos: sensors._rightPos, kind: 'right' },
     ];
-    for (const { dir, pos, kind } of dirs) {
+    for (const { pos, kind } of dirs) {
       if (!pos) continue;
       const cellKey = `${pos.x},${pos.y}`;
       highlights[cellKey] = kind;
-      const { dx, dy } = DIR_DELTA[dir] || { dx: 0, dy: 0 };
-      const naiveX = world.kara.x + dx;
-      const naiveY = world.kara.y + dy;
-      if (naiveX < 0)              wrapFrom[cellKey] = 'right';
-      else if (naiveX >= world.width)  wrapFrom[cellKey] = 'left';
-      else if (naiveY < 0)         wrapFrom[cellKey] = 'bottom';
-      else if (naiveY >= world.height) wrapFrom[cellKey] = 'top';
     }
   }
+  // Edge cells get a dashed outer border on each side that touches the
+  // world's perimeter — a universal "the world wraps here" hint that
+  // applies regardless of where Kara is. Corner cells get two classes.
+  // Computed in WorldCell directly from x/y/width/height.
 
   return (
     <div className="world-editor">
@@ -288,6 +284,11 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
           {world.cells.map((row, y) =>
             row.map((cell, x) => {
               const key = `${x},${y}`;
+              const edgeSides = [];
+              if (y === 0)                 edgeSides.push('top');
+              if (y === world.height - 1)  edgeSides.push('bottom');
+              if (x === 0)                 edgeSides.push('left');
+              if (x === world.width - 1)   edgeSides.push('right');
               return (
                 <WorldCell
                   key={key}
@@ -295,7 +296,7 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
                   isKara={world.kara.x === x && world.kara.y === y}
                   karaDir={world.kara.direction}
                   highlight={highlights[key]}
-                  wrapSide={wrapFrom[key]}
+                  edgeSides={edgeSides}
                   simMode={simMode}
                   tool={worldTool}
                   cellSize={cellSize}
