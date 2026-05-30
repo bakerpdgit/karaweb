@@ -2,15 +2,16 @@ name = "karaweb-turnstile-proxy"
 main = "src/index.js"
 compatibility_date = "2026-05-19"
 
-# The Worker is reachable at its default workers.dev URL:
-#   https://karaweb-turnstile-proxy.bakerpd.workers.dev
-# That's the URL baked into both backend scripts and is good enough
-# for production. No custom-domain route is needed unless you ever
-# migrate classinteractives.co.uk's DNS onto Cloudflare — in which
-# case you'd add a [[routes]] block here, e.g.:
-#   [[routes]]
-#   pattern   = "karaweb.classinteractives.co.uk/api/verify-turnstile"
-#   zone_name = "classinteractives.co.uk"
+# The Worker is reachable at one URL — the branded route on the
+# classinteractives.co.uk Cloudflare zone:
+#   https://karaweb.classinteractives.co.uk/api/verify-turnstile
+# The bare workers.dev URL is disabled (Wrangler now defaults
+# workers_dev to false when not explicitly set; we keep it
+# disabled because no in-the-wild deployment depends on it).
+
+[[routes]]
+pattern   = "karaweb.classinteractives.co.uk/api/verify-turnstile"
+zone_name = "classinteractives.co.uk"
 
 # Workers Logs (last 30 days, useful for debugging Turnstile rejections).
 [observability]

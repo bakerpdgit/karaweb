@@ -5,7 +5,7 @@ import { APPS_SCRIPT_TEMPLATE } from "./appsScriptTemplate.js";
 import { computeAdminTokenHash } from "./adminToken.js";
 import { derivePubFingerprint } from "../pubFingerprint.js";
 
-const DEFAULT_PROXY_URL = "https://karaweb-turnstile-proxy.bakerpd.workers.dev";
+const DEFAULT_PROXY_URL = "https://karaweb.classinteractives.co.uk/api/verify-turnstile";
 
 const RE_LS = new RegExp("\\u2028", "g");
 const RE_PS = new RegExp("\\u2029", "g");

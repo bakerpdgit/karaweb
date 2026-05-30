@@ -15,7 +15,7 @@ export default function GoogleDriveSetupPanel({ cloudSave, keydetails, dispatch,
   const ready = !!(keydetails?.publicKeyJwk && keydetails?.privateKeyJwk);
   const devMode = import.meta.env.VITE_SKIP_TURNSTILE === 'true';
   const proxyUrl = import.meta.env.VITE_TURNSTILE_PROXY_URL
-    || 'https://karaweb-turnstile-proxy.bakerpd.workers.dev';
+    || 'https://karaweb.classinteractives.co.uk/api/verify-turnstile';
 
   const [scriptSource, setScriptSource] = useState('');
   const [devScriptSource, setDevScriptSource] = useState('');

@@ -29,9 +29,12 @@ wrangler secret put TURNSTILE_SECRET_KEY
 wrangler deploy
 ```
 
-After deploy, edit `wrangler.toml` to uncomment the `[[routes]]` block
-with your real zone/hostname (e.g. `karaweb.classinteractives.co.uk`),
-then `wrangler deploy` again.
+The current `wrangler.toml` includes a `[[routes]]` block mapping
+the Worker to `karaweb.classinteractives.co.uk/api/verify-turnstile`
+on the `classinteractives.co.uk` Cloudflare zone. That branded route
+is the only public URL; the default `workers.dev` URL is disabled
+(Wrangler now defaults `workers_dev` to false when not explicitly
+set).
 
 ## Local development
 
@@ -50,7 +53,7 @@ inside `__VERIFY_PROXY_URL__` (generated for you by the wizard's
 ## Smoke test
 
 ```powershell
-curl -X POST https://karaweb-turnstile-proxy.bakerpd.workers.dev `
+curl -X POST https://karaweb.classinteractives.co.uk/api/verify-turnstile `
   -H "Content-Type: application/json" `
   -d '{\"tkn\":\"clearly-fake-token\"}'
 # Expect: { "success": false, "errors": ["invalid-input-response"] }

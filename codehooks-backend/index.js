@@ -62,12 +62,12 @@ import { app, Datastore } from "codehooks-js";
 // `TURNSTILE_SECRET_KEY` is NO LONGER read by this backend — the
 // Worker proxy holds the only copy.
 const DEFAULT_ALLOWED_ORIGINS = ["https://karaweb.classinteractives.co.uk"];
-// Bare workers.dev URL — works without bringing the parent zone into
-// Cloudflare's DNS (which would be needed for a custom-subdomain
-// Worker route). The Worker accepts POST at any path; we use the
-// root for simplicity.
+// Branded Worker Route on the classinteractives.co.uk Cloudflare
+// zone — set up via cloudflare-worker/wrangler.toml's [[routes]]
+// block. Override via the TURNSTILE_VERIFY_URL env var if running
+// your own Worker.
 const DEFAULT_TURNSTILE_VERIFY_URL =
-  "https://karaweb-turnstile-proxy.bakerpd.workers.dev";
+  "https://karaweb.classinteractives.co.uk/api/verify-turnstile";
 const DEFAULT_TURNSTILE_REQUIRED = true;
 // ────────────────────────────────────────────────────────────────────
 
