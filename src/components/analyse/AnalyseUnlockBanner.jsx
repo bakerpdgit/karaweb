@@ -1,13 +1,13 @@
 import React from 'react';
 
-export default function AnalyseUnlockBanner({ classList, keydetails, cloudSave, loadedCloudSave }) {
+export default function AnalyseUnlockBanner({ keydetails, cloudSave, loadedCloudSave }) {
   const lines = [];
-  const isCodehooks = (loadedCloudSave?.method || cloudSave?.method) === 'codehooks';
   if (!keydetails) {
     lines.push('Generate or load your keydetails file.');
-  }
-  if (isCodehooks && !classList?.classCode) {
-    lines.push('Set a class code in the Class List tab (Codehooks needs one).');
+  } else if (!keydetails.privateKeyJwk && !keydetails.encryptedKeyPair) {
+    // Public key only — common when the teacher loaded a v3 file via
+    // the Teacher-verification flow but didn't supply the password.
+    lines.push('Re-load your keydetails file and supply the password — only the public key is currently available, so submissions cannot be decrypted.');
   }
   if (!loadedCloudSave?.apiBaseUrl && !cloudSave?.apiBaseUrl) {
     lines.push('Configure the Cloud Save tab with your backend URL.');

@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { parseKeyDetailsFile } from '../../utils/keyDetailsFile.js';
+import { parseKeyDetailsFile, unlockKeyDetailsFile } from '../../utils/keyDetailsFile.js';
 import { setKeyDetails } from '../../utils/localStore.js';
+import { deriveSubmissionVerifier } from '../../utils/passwordVerifier.js';
 import RememberOnDeviceModal from '../RememberOnDeviceModal.jsx';
+import KeydetailsPasswordModal from './KeydetailsPasswordModal.jsx';
 import { useConfirmModal } from '../ConfirmModal.jsx';
 
 /**
@@ -30,6 +32,11 @@ export default function TeacherKeyCheckModal({
   // until they answer; on Yes we write localStorage, on No we move on
   // session-only.
   const [rememberPrompt, setRememberPrompt] = useState(null);
+  // Pops after a v3 (encrypted) file is selected — the teacher must
+  // supply the password to prove they're the actual teacher, not just
+  // someone holding the file. Shape: { publicKeyJwk, encryptedKeyPair,
+  // busy, errorText } | null.
+  const [unlockPrompt, setUnlockPrompt] = useState(null);
   const { confirm, modal: confirmModalEl } = useConfirmModal();
 
   const onDetach = async () => {
@@ -63,8 +70,22 @@ export default function TeacherKeyCheckModal({
         setStatus({ kind: 'error', message: 'This is a valid keydetails file but it does not match the keys this challenges file was saved with. Try a different file.' });
         return;
       }
-      // Adopt the keys into app state so the other cloud tabs unlock.
-      // Then prompt to remember-on-device before running the gated action.
+      // v3 (encrypted) file → the public key matches but we still need
+      // the password to prove the holder is the teacher (and to obtain
+      // the private key needed for Analyse decryption later).
+      if (parsed.encryptedKeyPair) {
+        setStatus({ kind: 'ok', message: '✓ Public key matches — please enter your keydetails password.' });
+        setUnlockPrompt({
+          publicKeyJwk:     parsed.publicKeyJwk,
+          encryptedKeyPair: parsed.encryptedKeyPair,
+          busy:             false,
+          errorText:        null,
+        });
+        return;
+      }
+      // v1 / v2 (plaintext) — adopt the keys into app state so the
+      // other cloud tabs unlock. Then prompt to remember-on-device
+      // before running the gated action.
       dispatch({
         type: 'KEY_SET',
         keydetails: {
@@ -86,14 +107,57 @@ export default function TeacherKeyCheckModal({
 
   const confirmRemember = (yes) => {
     if (rememberPrompt && yes) {
-      setKeyDetails({
+      // For v3 (encrypted) files we persist the encrypted blob — never
+      // the plaintext private key. The teacher will be prompted for
+      // the password on next session boot.
+      const base = {
         publicKeyJwk: rememberPrompt.publicKeyJwk,
-        privateKeyJwk: rememberPrompt.privateKeyJwk,
         savedAt: new Date().toISOString(),
-      });
+      };
+      if (rememberPrompt.encryptedKeyPair) {
+        setKeyDetails({ ...base, encryptedKeyPair: rememberPrompt.encryptedKeyPair });
+      } else {
+        setKeyDetails({ ...base, privateKeyJwk: rememberPrompt.privateKeyJwk });
+      }
     }
     setRememberPrompt(null);
     onSuccess?.();
+  };
+
+  const onUnlockSubmit = async (password) => {
+    if (!unlockPrompt) return;
+    setUnlockPrompt(p => p ? { ...p, busy: true, errorText: null } : p);
+    try {
+      const { privateKeyJwk } = await unlockKeyDetailsFile(
+        unlockPrompt.encryptedKeyPair, password,
+      );
+      const submissionVerifier = await deriveSubmissionVerifier(
+        password, unlockPrompt.publicKeyJwk,
+      );
+      dispatch({
+        type: 'KEY_SET',
+        keydetails: {
+          publicKeyJwk:     unlockPrompt.publicKeyJwk,
+          privateKeyJwk,
+          encryptedKeyPair: unlockPrompt.encryptedKeyPair,
+          submissionVerifier,
+        },
+      });
+      setStatus({ kind: 'ok', message: '✓ Keys matched and unlocked.' });
+      setRememberPrompt({
+        publicKeyJwk:     unlockPrompt.publicKeyJwk,
+        privateKeyJwk,
+        encryptedKeyPair: unlockPrompt.encryptedKeyPair,
+      });
+      setUnlockPrompt(null);
+    } catch (err) {
+      setUnlockPrompt(p => p ? { ...p, busy: false, errorText: err?.message ?? String(err) } : p);
+    }
+  };
+
+  const onUnlockCancel = () => {
+    setUnlockPrompt(null);
+    setStatus({ kind: 'error', message: 'Unlock cancelled. Try again or load a different file.' });
   };
 
   const actionLabel = action === 'edit' ? 'editing challenges' : 'exiting challenge mode';
@@ -152,6 +216,15 @@ export default function TeacherKeyCheckModal({
           )}
         </div>
       </div>
+      {unlockPrompt && (
+        <KeydetailsPasswordModal
+          mode="unlock"
+          busy={unlockPrompt.busy}
+          errorText={unlockPrompt.errorText}
+          onSubmit={onUnlockSubmit}
+          onCancel={onUnlockCancel}
+        />
+      )}
       {rememberPrompt && (
         <RememberOnDeviceModal
           what="keydetails"

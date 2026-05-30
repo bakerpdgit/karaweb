@@ -39,6 +39,10 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
   //   { encryptedKeyPair, busy, errorText, source: 'load'|'reExport' }
   const [unlockModal, setUnlockModal] = useState(null);
   const [showAbout, setShowAbout] = useState(false);
+  // Info banner shown after a successful add/change/remove password
+  // transition. `kind` controls the message; null hides the banner.
+  //   { kind: 'added' | 'changed' | 'removed' } | null
+  const [lastTransition, setLastTransition] = useState(null);
   const { confirm, modal: confirmModalEl } = useConfirmModal();
   const fileInputRef = useRef(null);
 
@@ -182,6 +186,83 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
     setStatus({ message: 'Stored keys cleared from this browser.', kind: 'ok' });
   };
 
+  // ── Add / change / remove password on the currently-loaded keydetails ──
+  // Shared finisher: encrypt + dispatch + download + offer-remember +
+  // banner. `kind` is 'added' | 'changed'.
+  const finishProtect = async (privateKeyJwk, password, kind) => {
+    const publicKeyJwk = keydetails.publicKeyJwk;
+    const encryptedKeyPair = await encryptPlaintextWithPassword(
+      { publicKeyJwk, privateKeyJwk }, password,
+    );
+    const submissionVerifier = await deriveSubmissionVerifier(password, publicKeyJwk);
+    dispatch({ type: 'KEY_SET', keydetails: {
+      publicKeyJwk, privateKeyJwk, encryptedKeyPair, submissionVerifier,
+    }});
+    const fileObj = await buildKeyDetailsFile({ publicKeyJwk, privateKeyJwk, password });
+    downloadKeyDetails(fileObj);
+    setLastTransition({ kind });
+    offerToRemember(
+      publicKeyJwk, privateKeyJwk,
+      kind === 'added'
+        ? 'Password added — new encrypted keydetails downloaded.'
+        : 'Password changed — new encrypted keydetails downloaded.',
+      encryptedKeyPair,
+    );
+  };
+
+  const addPassword = () => {
+    if (!keydetails?.privateKeyJwk) {
+      setStatus({ message: 'No plaintext private key available to encrypt.', kind: 'error' });
+      return;
+    }
+    setSetPwModal({
+      pendingPublicJwk:  keydetails.publicKeyJwk,
+      pendingPrivateJwk: keydetails.privateKeyJwk,
+      busy: false,
+      onAfter: (password) => finishProtect(keydetails.privateKeyJwk, password, 'added'),
+    });
+  };
+
+  const changePassword = async () => {
+    try {
+      const privateKeyJwk = await requestPrivateKey();
+      setSetPwModal({
+        pendingPublicJwk:  keydetails.publicKeyJwk,
+        pendingPrivateJwk: privateKeyJwk,
+        busy: false,
+        onAfter: (password) => finishProtect(privateKeyJwk, password, 'changed'),
+      });
+    } catch (err) {
+      setStatus({ message: 'Change password cancelled: ' + (err?.message ?? err), kind: 'error' });
+    }
+  };
+
+  const removePassword = async () => {
+    const ok = await confirm({
+      title: 'Remove password protection?',
+      message: '⚠ Your keydetails file will be saved unencrypted — anyone with the file alone can decrypt cloud submissions. Teacher operations on cloud backends (Analyse fetches) will also stop working until you re-deploy the Apps Script (or clear the Codehooks pub_settings collection).',
+      confirmLabel: 'Remove password',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    try {
+      const privateKeyJwk = await requestPrivateKey();
+      const publicKeyJwk  = keydetails.publicKeyJwk;
+      dispatch({ type: 'KEY_SET', keydetails: {
+        publicKeyJwk, privateKeyJwk, encryptedKeyPair: null, submissionVerifier: null,
+      }});
+      const fileObj = await buildKeyDetailsFile({ publicKeyJwk, privateKeyJwk });
+      downloadKeyDetails(fileObj);
+      setLastTransition({ kind: 'removed' });
+      offerToRemember(
+        publicKeyJwk, privateKeyJwk,
+        'Password removed — new unencrypted keydetails downloaded.',
+      );
+    } catch (err) {
+      setStatus({ message: 'Remove password cancelled: ' + (err?.message ?? err), kind: 'error' });
+    }
+  };
+
   const handleLoadKeyFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -298,20 +379,95 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
             ? <span className="cl-ok">✓ Keys loaded. The Class List, Cloud Save and Analyse tabs are now enabled.</span>
             : <span className="cl-warn">No keys loaded yet. Generate a new keydetails file, or load an existing one shared by your school.</span>}
         </div>
-        <div className="cl-row">
-          <label
-            className="tsb-check"
-            title="Generate an encrypted file with an 8-char password (no recovery if lost)."
-          >
-            <input
-              type="checkbox"
-              checked={protectPwd}
-              onChange={e => setProtectPwd(e.target.checked)}
-              disabled={busyKeys}
-            />
-            🔐 Password-protect new keydetails file
-          </label>
-        </div>
+        {keydetails && (
+          <div className="cl-row" style={{ alignItems: 'center' }}>
+            {keydetails.encryptedKeyPair ? (
+              <>
+                <span className="cl-ok">🔐 Password-protected</span>
+                <button
+                  className="btn-secondary"
+                  onClick={changePassword}
+                  title="Pick a new password and download a re-encrypted keydetails file"
+                >Change password…</button>
+                <button
+                  className="btn-secondary"
+                  onClick={removePassword}
+                  title="Save the keydetails unencrypted (no password)"
+                >Remove password…</button>
+              </>
+            ) : (
+              <>
+                <span className="cl-warn">🔓 Unprotected</span>
+                <button
+                  className="btn-secondary"
+                  onClick={addPassword}
+                  title="Encrypt your keydetails file with an 8-char password"
+                >Add password…</button>
+              </>
+            )}
+          </div>
+        )}
+        {lastTransition && (
+          <div className="cl-status cl-status-ok" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ flex: 1 }}>
+              {lastTransition.kind === 'added' && (
+                <>
+                  ✓ <strong>Password added.</strong> Student submissions
+                  are unaffected. To enforce the password on teacher
+                  operations (Analyse fetches), re-generate and re-deploy
+                  your Apps Script. On Codehooks, the next teacher
+                  operation will auto-install the verifier.
+                </>
+              )}
+              {lastTransition.kind === 'changed' && (
+                <>
+                  ✓ <strong>Password changed.</strong> Until your Apps
+                  Script and Codehooks backend are updated, the Analyse
+                  tab will fail with a password mismatch. Re-deploy your
+                  Apps Script with the new verifier; on Codehooks, clear
+                  the <code>pub_settings</code> collection in Codehooks
+                  Studio.
+                </>
+              )}
+              {lastTransition.kind === 'removed' && (
+                <>
+                  ✓ <strong>Password removed.</strong> Student
+                  submissions are unaffected. To restore Analyse fetches,
+                  re-deploy your Apps Script (which will bake in an empty
+                  verifier). On Codehooks, clear the
+                  <code> pub_settings</code> collection in Codehooks
+                  Studio.
+                </>
+              )}
+            </span>
+            <button
+              className="btn-secondary"
+              onClick={() => dispatch({ type: 'EDITOR_SET_TAB', tab: 'cloudSave' })}
+            >Open Cloud Save tab →</button>
+            <button
+              className="cl-row-btn"
+              onClick={() => setLastTransition(null)}
+              title="Dismiss"
+              style={{ padding: '2px 8px' }}
+            >✕</button>
+          </div>
+        )}
+        {!keydetails && (
+          <div className="cl-row">
+            <label
+              className="tsb-check"
+              title="Generate an encrypted file with an 8-char password (no recovery if lost)."
+            >
+              <input
+                type="checkbox"
+                checked={protectPwd}
+                onChange={e => setProtectPwd(e.target.checked)}
+                disabled={busyKeys}
+              />
+              🔐 Password-protect new keydetails file
+            </label>
+          </div>
+        )}
         <div className="cl-row">
           <button
             className="btn-primary"
