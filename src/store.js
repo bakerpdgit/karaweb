@@ -257,6 +257,12 @@ function makeChallenge(world, name, mode = 'blocks', options = {}) {
     // Block types removed from the Blockly toolbox for this challenge.
     // Empty / missing = every block allowed (backwards-compatible default).
     disallowedBlocks: [],
+    // If true, the world has hard, impassable edges — walking off
+    // throws like hitting a tree, and the directional sensors report
+    // "tree" for off-grid look-aheads. Default false preserves the
+    // historical wrap-around behaviour (Kara reappears on the
+    // opposite side).
+    fixedWorldEdges: false,
   };
 }
 
@@ -378,13 +384,15 @@ function loadChallenge(state, challenge) {
   } else if (challenge.mode === 'python') {
     pythonCode = userWork?.python ?? challenge.starter.python ?? '';
   }
+  const initWorld = cloneWorld(challenge.initialWorld);
+  initWorld.fixedEdges = !!challenge.fixedWorldEdges;
   return withSensors({
     ...state,
     appMode: challenge.mode,
     fsm,
     blocks: { ...state.blocks, blocklyState: blocksState, currentBlockId: null, errorBlockId: null },
     python: { ...state.python, code: pythonCode, currentLine: null, errorLine: null },
-  }, cloneWorld(challenge.initialWorld));
+  }, initWorld);
 }
 
 // Load a challenge into editor state for editing. Reads code from
@@ -401,12 +409,14 @@ function loadChallengeForEditing(state, challenge) {
   const slot = state.editingTarget === 'solution'
     ? (challenge.solution ?? { fsm: null, blocks: null, python: '' })
     : (challenge.starter ?? { fsm: null, blocks: null, python: '' });
+  const editWorld = cloneWorld(world);
+  editWorld.fixedEdges = !!challenge.fixedWorldEdges;
   return withSensors({
     ...state,
     fsm: slot.fsm ?? createFSM(),
     blocks: { ...state.blocks, blocklyState: slot.blocks ?? null, currentBlockId: null, errorBlockId: null },
     python: { ...state.python, code: slot.python ?? '', currentLine: null, errorLine: null },
-  }, cloneWorld(world));
+  }, editWorld);
 }
 
 // In challenge-editor mode, if the teacher has a sim running / paused /
@@ -1143,6 +1153,22 @@ function innerReducer(state, action) {
           c.id === action.id ? { ...c, endOnTargetNotRequired: !!action.value } : c
         ),
       };
+
+    case 'CH_SET_FIXED_WORLD_EDGES': {
+      const nextChallenges = state.challenges.map(c =>
+        c.id === action.id ? { ...c, fixedWorldEdges: !!action.value } : c
+      );
+      // If we're currently editing (or playing) this challenge, re-stamp
+      // the live world's fixedEdges flag so the simulator and the
+      // editor render reflect the change immediately.
+      const activeId = state.currentChallengeId
+        ?? (state.challengeEditor ? state.editingChallengeId : null);
+      const next = { ...state, challenges: nextChallenges };
+      if (activeId === action.id) {
+        next.world = { ...state.world, fixedEdges: !!action.value };
+      }
+      return next;
+    }
 
     case 'CH_SET_DISALLOWED_BLOCKS': {
       const next = Array.isArray(action.disallowedBlocks)

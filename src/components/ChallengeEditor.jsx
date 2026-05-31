@@ -263,6 +263,14 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
                 />
                 End on target not required
               </label>
+              <label className="challenge-allow-mode" title="When ticked, the world has hard, impassable edges — walking off throws an error like hitting a tree. Default off — the world wraps around (off the right reappears on the left).">
+                <input
+                  type="checkbox"
+                  checked={!!editing.fixedWorldEdges}
+                  onChange={e => dispatch({ type: 'CH_SET_FIXED_WORLD_EDGES', id: editing.id, value: e.target.checked })}
+                />
+                Fixed world edges
+              </label>
               {(editing.mode === 'blocks' || editing.allowModeChange) && (
                 <button
                   type="button"

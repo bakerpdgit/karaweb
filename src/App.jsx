@@ -1,7 +1,7 @@
 import React, { useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSequence, worldsEqual } from './store.js';
 import { buildSaveData, downloadJSON, parseSaveData } from './utils.js';
-import { INTRO_NOTES, EXAMPLES } from './examples.js';
+import { getIntroNotes, EXAMPLES } from './examples.js';
 import introToProgramming1 from '../dist-content/intro-to-programming-book-1.json';
 import WorldEditor from './components/WorldEditor.jsx';
 import WorldThumbnail from './components/WorldThumbnail.jsx';
@@ -1209,7 +1209,7 @@ export default function App() {
           <div className="left-panel-scroll">
             {notesOpen && (
               <ChallengeContextPanel
-                introMarkdown={INTRO_NOTES}
+                introMarkdown={getIntroNotes(appMode)}
                 challenge={contextChallenge}
                 isEditing={!!editingChallenge}
                 onClose={() => setNotesOpen(false)}

@@ -284,11 +284,15 @@ export default function WorldEditor({ world, sensors, simMode, worldTool, dispat
           {world.cells.map((row, y) =>
             row.map((cell, x) => {
               const key = `${x},${y}`;
+              // Dashed wrap-around indicator on world-perimeter cells —
+              // skipped when this challenge has fixed (hard-walled) edges.
               const edgeSides = [];
-              if (y === 0)                 edgeSides.push('top');
-              if (y === world.height - 1)  edgeSides.push('bottom');
-              if (x === 0)                 edgeSides.push('left');
-              if (x === world.width - 1)   edgeSides.push('right');
+              if (!world.fixedEdges) {
+                if (y === 0)                 edgeSides.push('top');
+                if (y === world.height - 1)  edgeSides.push('bottom');
+                if (x === 0)                 edgeSides.push('left');
+                if (x === world.width - 1)   edgeSides.push('right');
+              }
               return (
                 <WorldCell
                   key={key}

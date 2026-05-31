@@ -20,12 +20,22 @@ export function turnRight(dir) {
   return DIRECTIONS[(DIRECTIONS.indexOf(dir) + 1) % 4];
 }
 
-// Return wrapped (x, y) of the cell one step in `dir` from (x, y)
-function step(x, y, dir, width, height) {
+// Return the cell one step in `dir` from (x, y). By default the world
+// wraps at its edges (the historical behaviour). When `wraps` is false
+// the function returns `null` to signal "off the edge" — callers
+// (sensor read, move action) decide whether that's a wall, an error,
+// or some other outcome.
+function step(x, y, dir, width, height, wraps = true) {
   const { dx, dy } = DIR_DELTA[dir];
+  const nx = x + dx;
+  const ny = y + dy;
+  if (!wraps) {
+    if (nx < 0 || nx >= width || ny < 0 || ny >= height) return null;
+    return { x: nx, y: ny };
+  }
   return {
-    x: ((x + dx) % width + width) % width,
-    y: ((y + dy) % height + height) % height,
+    x: ((nx % width) + width) % width,
+    y: ((ny % height) + height) % height,
   };
 }
 
@@ -53,28 +63,32 @@ export function cloneWorld(world) {
     height: world.height,
     cells: cloneCells(world.cells),
     kara: { ...world.kara },
+    fixedEdges: !!world.fixedEdges,
   };
 }
 
 // ── Sensor computation ───────────────────────────────────────────────────────
 
 export function computeSensors(world) {
-  const { cells, kara, width, height } = world;
-  const front = step(kara.x, kara.y, kara.direction, width, height);
-  const left  = step(kara.x, kara.y, turnLeft(kara.direction), width, height);
-  const right = step(kara.x, kara.y, turnRight(kara.direction), width, height);
+  const { cells, kara, width, height, fixedEdges } = world;
+  const wraps = !fixedEdges;
+  const front = step(kara.x, kara.y, kara.direction,            width, height, wraps);
+  const left  = step(kara.x, kara.y, turnLeft(kara.direction),  width, height, wraps);
+  const right = step(kara.x, kara.y, turnRight(kara.direction), width, height, wraps);
 
-  const frontCell = cells[front.y][front.x];
-  const leftCell  = cells[left.y][left.x];
-  const rightCell = cells[right.y][right.x];
+  // With fixed edges, an off-grid look-ahead is treated as a tree-like
+  // wall: tree-front/left/right is true; mushroom-front is false.
+  const frontCell = front ? cells[front.y][front.x] : null;
+  const leftCell  = left  ? cells[left.y][left.x]   : null;
+  const rightCell = right ? cells[right.y][right.x] : null;
 
   return {
-    treeFront:     frontCell.object === 'tree',
-    treeLeft:      leftCell.object  === 'tree',
-    treeRight:     rightCell.object === 'tree',
-    mushroomFront: frontCell.object === 'mushroom',
+    treeFront:     frontCell ? frontCell.object === 'tree' : true,
+    treeLeft:      leftCell  ? leftCell.object  === 'tree' : true,
+    treeRight:     rightCell ? rightCell.object === 'tree' : true,
+    mushroomFront: frontCell ? frontCell.object === 'mushroom' : false,
     onLeaf:        cells[kara.y][kara.x].hasLeaf,
-    // expose adjacent positions for world editor highlighting
+    // expose adjacent positions for world editor highlighting (null when off-grid)
     _frontPos: front,
     _leftPos:  left,
     _rightPos: right,
@@ -115,14 +129,21 @@ export function applyAction(world, action) {
       break;
 
     case 'move': {
-      const front = step(kara.x, kara.y, kara.direction, width, height);
+      const wraps = !world.fixedEdges;
+      const front = step(kara.x, kara.y, kara.direction, width, height, wraps);
+      if (!front) {
+        throw new Error('Kara cannot walk off the edge of the world!');
+      }
       const frontCell = cells[front.y][front.x];
 
       if (frontCell.object === 'tree') {
         throw new Error('Kara cannot move into a tree!');
       }
       if (frontCell.object === 'mushroom') {
-        const behind = step(front.x, front.y, kara.direction, width, height);
+        const behind = step(front.x, front.y, kara.direction, width, height, wraps);
+        if (!behind) {
+          throw new Error('Cannot push mushroom off the edge of the world!');
+        }
         const behindCell = cells[behind.y][behind.x];
         if (behindCell.object !== null) {
           throw new Error('Cannot push mushroom — cell behind it is blocked!');
@@ -495,6 +516,7 @@ export function parseSaveData(raw) {
       disallowedBlocks: Array.isArray(withCheckpoints.disallowedBlocks)
         ? withCheckpoints.disallowedBlocks.filter(t => typeof t === 'string')
         : [],
+      fixedWorldEdges: !!withCheckpoints.fixedWorldEdges,
     };
   });
 
