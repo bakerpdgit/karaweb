@@ -5,18 +5,17 @@ import WorldThumbnail from './WorldThumbnail.jsx';
 /**
  * Tabbed panel that lives under the World editor.
  *
- *   Tab 1 — Intro    (the file-level introduction — always shown if
- *                     `introMarkdown` is non-empty; default tab when
- *                     no challenge is active)
- *   Tab 2 — Notes    (per-challenge notes; in teacher-edit mode
- *                     shows a Markdown textarea + preview toggle)
- *   Tab 3 — Target   (per-challenge target world thumbnail)
+ *   When a challenge is active (tab order):
+ *     Tab 1 — Target World  (the world Kara must end on)
+ *     Tab 2 — Challenge Notes (markdown notes for this challenge)
+ *     Tab 3 — Intro          (file-level intro; only when introMarkdown set)
  *
- * The challenge-specific tabs are hidden when no challenge is in
- * scope. The user can close the whole panel via the ✕ in the header.
+ *   When no challenge is active:
+ *     Only the Intro tab is shown.
  *
- * When a challenge becomes active the focus shifts from Intro → Notes
- * automatically; when no challenge is active the focus resets to Intro.
+ * The user can close the whole panel via the ✕ in the header. When a
+ * challenge becomes active the focus snaps to Target World so the
+ * student immediately sees what they're working toward.
  */
 export default function ChallengeContextPanel({
   introMarkdown,
@@ -34,16 +33,18 @@ export default function ChallengeContextPanel({
   const targetTabVisible = !!challenge && hasTarget;
 
   const defaultTab = challenge
-    ? (notesTabVisible ? 'notes' : (targetTabVisible ? 'target' : (hasIntro ? 'intro' : 'notes')))
-    : (hasIntro ? 'intro' : 'notes');
+    ? (targetTabVisible ? 'target' : (notesTabVisible ? 'notes' : (hasIntro ? 'intro' : 'target')))
+    : (hasIntro ? 'intro' : 'target');
   const [tab, setTab] = useState(defaultTab);
 
-  // When the active challenge changes (e.g. student moves to next
-  // challenge, or teacher selects another), snap to its Notes tab.
-  // When the challenge clears (back to no-challenge view), snap to Intro.
+  // When the active challenge changes (or its editing-target / mode
+  // changes), snap to Target World by default so the student
+  // immediately sees the goal. When the challenge clears, snap back
+  // to Intro.
   useEffect(() => {
-    if (challenge && notesTabVisible) setTab('notes');
-    else if (!challenge && hasIntro)  setTab('intro');
+    if (challenge && targetTabVisible)      setTab('target');
+    else if (challenge && notesTabVisible)  setTab('notes');
+    else if (!challenge && hasIntro)        setTab('intro');
   }, [challenge?.id, isEditing]);
 
   // Hide entirely if nothing has anything to show.
@@ -53,14 +54,14 @@ export default function ChallengeContextPanel({
     <div className="ctx-panel">
       <div className="ctx-panel-header">
         <div className="ctx-panel-tabs" role="tablist">
-          {hasIntro && (
+          {targetTabVisible && (
             <button
               role="tab"
-              aria-selected={tab === 'intro'}
-              className={`ctx-tab ${tab === 'intro' ? 'active' : ''}`}
-              onClick={() => setTab('intro')}
-              title="The introduction text for this app / challenge book"
-            >📖 Intro</button>
+              aria-selected={tab === 'target'}
+              className={`ctx-tab ${tab === 'target' ? 'active' : ''}`}
+              onClick={() => setTab('target')}
+              title="Target world Kara must reach"
+            >🎯 Target World</button>
           )}
           {notesTabVisible && (
             <button
@@ -69,16 +70,16 @@ export default function ChallengeContextPanel({
               className={`ctx-tab ${tab === 'notes' ? 'active' : ''}`}
               onClick={() => setTab('notes')}
               title={isEditing ? 'Edit the notes shown to students for this challenge' : 'Notes for this challenge'}
-            >📝 Notes</button>
+            >📝 Challenge Notes</button>
           )}
-          {targetTabVisible && (
+          {hasIntro && (
             <button
               role="tab"
-              aria-selected={tab === 'target'}
-              className={`ctx-tab ${tab === 'target' ? 'active' : ''}`}
-              onClick={() => setTab('target')}
-              title="Target world Kara must reach"
-            >🎯 Target</button>
+              aria-selected={tab === 'intro'}
+              className={`ctx-tab ${tab === 'intro' ? 'active' : ''}`}
+              onClick={() => setTab('intro')}
+              title="The introduction text for this app / challenge book"
+            >ℹ Intro</button>
           )}
         </div>
         <button className="ctx-panel-close" onClick={onClose} title="Hide this panel">✕</button>

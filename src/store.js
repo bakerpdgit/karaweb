@@ -1223,7 +1223,11 @@ function innerReducer(state, action) {
       if (!state.currentChallengeId) return state;
       const ch = state.challenges.find(c => c.id === state.currentChallengeId);
       if (!ch) return state;
-      const mode = ch.mode;
+      // Use the currently-active editor mode — not ch.mode — so that
+      // when allowModeChange lets the student switch modes mid-challenge,
+      // Show Solution swaps in the solution for the mode they're
+      // looking at, not the challenge's default mode.
+      const mode = state.appMode;
       // Reset any in-progress sim so neither view inherits a partial
       // world / running runner from the other.
       const restoredWorld = state.sim.savedWorld ?? cloneWorld(ch.initialWorld);

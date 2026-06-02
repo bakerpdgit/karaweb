@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks';
 import { toolboxJson, filterToolbox } from '../python/blocks/toolbox.js';
+import { validateBlocksState } from '../utils/blocksValidate.js';
 import { initBlocks } from '../python/blocks/pythonGenerator.js';
 import RunnerOutputPanel from './RunnerOutputPanel.jsx';
 import { countBlocks } from '../utils/codeLimits.js';
@@ -44,6 +45,21 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
     if (blocks.blocklyState) {
       try {
         Blockly.serialization.workspaces.load(blocks.blocklyState, ws);
+        // One-shot validation paint right after the workspace loads
+        // so existing warnings show up before the user touches anything.
+        if (!readOnly) {
+          try {
+            const issues = validateBlocksState(blocks.blocklyState);
+            const firstMsg = new Map();
+            for (const i of issues) {
+              if (!firstMsg.has(i.blockId)) firstMsg.set(i.blockId, i.message);
+            }
+            for (const b of ws.getAllBlocks(false)) {
+              const msg = firstMsg.get(b.id);
+              try { b.setWarningText(msg ?? null); } catch {}
+            }
+          } catch {}
+        }
       } catch (e) {
         console.warn('Failed to load blocks.blocklyState:', e);
       }
@@ -111,6 +127,26 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
             }
             lastValidRef.current = json;
             dispatch({ type: 'BLK_SET_STATE', blocklyState: json, markDirty: true });
+            // Live syntax-style validation: walk the just-saved state
+            // and paint warning bubbles on blocks with empty required
+            // inputs (e.g. a while loop with no condition).
+            try {
+              const issues = validateBlocksState(json);
+              const badIds = new Set(issues.map(i => i.blockId));
+              // Build first-message-per-block map (a single bubble can't
+              // show two messages; first issue is the most actionable).
+              const firstMsg = new Map();
+              for (const i of issues) {
+                if (!firstMsg.has(i.blockId)) firstMsg.set(i.blockId, i.message);
+              }
+              for (const b of ws.getAllBlocks(false)) {
+                if (badIds.has(b.id)) {
+                  try { b.setWarningText(firstMsg.get(b.id)); } catch {}
+                } else {
+                  try { b.setWarningText(null); } catch {}
+                }
+              }
+            } catch {}
           } catch (e) {
             console.warn('Failed to serialise workspace:', e);
           }

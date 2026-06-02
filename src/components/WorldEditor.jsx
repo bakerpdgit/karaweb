@@ -152,9 +152,21 @@ const TOOLS = [
 
 // ── WorldEditor ──────────────────────────────────────────────────────────────
 
-export default function WorldEditor({ world, sensors, simMode, worldTool, dispatch }) {
+export default function WorldEditor({
+  world, sensors, simMode, worldTool, dispatch,
+  cellSize: cellSizeProp, onCellSizeChange,
+}) {
   const [isPainting, setIsPainting] = useState(false);
-  const [cellSize, setCellSize]     = useState(DEFAULT_CELL);
+  // Cell size can be lifted by the parent (so the Target World tab's
+  // thumbnail can mirror the same zoom level). Falls back to internal
+  // state when no parent owns it.
+  const [internalCellSize, setInternalCellSize] = useState(DEFAULT_CELL);
+  const cellSize = cellSizeProp ?? internalCellSize;
+  const setCellSize = (v) => {
+    const next = typeof v === 'function' ? v(cellSize) : v;
+    if (onCellSizeChange) onCellSizeChange(next);
+    else                  setInternalCellSize(next);
+  };
 
   const applyTool = useCallback((x, y) => {
     if (simMode !== 'edit') return;

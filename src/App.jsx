@@ -3,9 +3,18 @@ import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSe
 import { buildSaveData, downloadJSON, parseSaveData } from './utils.js';
 import { getIntroNotes, EXAMPLES } from './examples.js';
 import introToProgramming1 from '../dist-content/intro-to-programming-book-1.json';
+
+// Bundled multi-challenge learning books, surfaced inside the
+// Challenges header dropdown alongside the four single-challenge
+// Examples. Each entry's `slug` maps to a string handled by
+// handleExampleSelect (e.g. 'book:intro1' is treated specially there).
+const LEARNING_BOOKS = [
+  { slug: 'book:intro1', title: '📘 Introduction to Programming 1' },
+];
 import WorldEditor from './components/WorldEditor.jsx';
 import WorldThumbnail from './components/WorldThumbnail.jsx';
-import ChallengeContextPanel from './components/ChallengeContextPanel.jsx';
+import WorldTabsPanel from './components/WorldTabsPanel.jsx';
+import IntroPanel from './components/IntroPanel.jsx';
 import FSMEditor from './components/FSMEditor.jsx';
 import TransitionModal from './components/TransitionModal.jsx';
 import SimulationControls from './components/SimulationControls.jsx';
@@ -19,6 +28,7 @@ import {
   resolveUserSlot, getBookProgress, saveChallengeRun, saveChallengeResult,
   clearBookProgress, listBookProgressSlots, importBookProgress,
 } from './utils/bookProgress.js';
+import { validateBlocksState, summariseIssues } from './utils/blocksValidate.js';
 import SaveDialog from './components/SaveDialog.jsx';
 import NotesPanel from './components/NotesPanel.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
@@ -109,7 +119,12 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   const [sensorsOpen, setSensorsOpen]   = useState(true);
-  const [notesOpen, setNotesOpen]       = useState(true);
+  const [introOpen,   setIntroOpen]     = useState(true);
+  // Shared cell-size state so the World tab and the Target World tab
+  // render the world at the same zoom level. Owned here (rather than
+  // inside WorldEditor) because the Target tab's WorldThumbnail also
+  // needs to read it.
+  const [worldCellSize, setWorldCellSize] = useState(38);
   const [showPanelsMenu, setShowPanelsMenu] = useState(false);
   const panelsMenuRef = useRef(null);
 
@@ -326,12 +341,14 @@ export default function App() {
   }, [world, sim.mode, sim.checkpointIdx, challengeResult, activeChallenge, editingChallenge]);
 
   // ── Challenge context panel auto-open ─────────────────────────────────
-  // Open the side context panel whenever a challenge becomes active or
-  // the teacher enters the editor on a challenge — both cases give the
-  // user something useful (notes / target / editor) to look at.
+  // When a challenge becomes active, hide the file-level Intro panel —
+  // its content is no longer relevant compared to the per-challenge
+  // World / Target / Notes tabs above. The user can re-open it via the
+  // Panels menu at any time.
   useEffect(() => {
-    if (contextChallenge) setNotesOpen(true);
-  }, [contextChallenge?.id, challengeEditor]);
+    if (contextChallenge) setIntroOpen(false);
+    else                  setIntroOpen(true);
+  }, [contextChallenge?.id]);
 
   // ── Auto-switch programming mode when entering a locked challenge ───
   // The teacher set this challenge's `mode`; the student is locked to
@@ -930,7 +947,6 @@ export default function App() {
         cloudSave: null,
       });
       dispatch({ type: 'CH_SELECT', id: challenge.id });
-      setNotesOpen(true);
       setLoadError(null);
     } catch (err) {
       setLoadError(err.message);
@@ -959,6 +975,18 @@ export default function App() {
   const generatePython = useCallback(() => {
     try {
       if (appMode === 'blocks') {
+        // Syntax-style check before we generate: catches the common
+        // "empty while condition" / "missing comparison operand" cases
+        // and surfaces them as a friendly banner instead of letting
+        // the user wait for a confusing runtime error.
+        const issues = validateBlocksState(blocks.blocklyState);
+        if (issues.length > 0) {
+          dispatch({
+            type: 'RUN_SET_ERROR',
+            message: summariseIssues(issues),
+          });
+          return null;
+        }
         return generateFromState(world, blocks.blocklyState);
       }
       if (appMode === 'python') {
@@ -1012,16 +1040,6 @@ export default function App() {
           <input ref={fileInputRef} type="file" accept=".json"
             style={{ display: 'none' }} onChange={handleFileChange} />
 
-          <select className="examples-select" value=""
-            onChange={e => { if (e.target.value) handleExampleSelect(e.target.value); }}
-            disabled={sim.mode !== 'edit'} title="Load a built-in example">
-            <option value="">⚡ Examples...</option>
-            {EXAMPLES.map(ex => (
-              <option key={ex.id} value={ex.id}>{ex.name}</option>
-            ))}
-            <option disabled>──────── Books ────────</option>
-            <option value="book:intro1">📘 Introduction to Programming 1</option>
-          </select>
 
           <div className="panels-menu-wrap" ref={panelsMenuRef}>
             <button className="header-btn" title="Show / hide panels"
@@ -1034,9 +1052,9 @@ export default function App() {
                   onClick={() => setSensorsOpen(v => !v)}>
                   {sensorsOpen ? '☑' : '☐'} Sensors
                 </button>
-                <button className={`panels-menu-item ${notesOpen ? 'checked' : ''}`}
-                  onClick={() => setNotesOpen(v => !v)}>
-                  {notesOpen ? '☑' : '☐'} Notes
+                <button className={`panels-menu-item ${introOpen ? 'checked' : ''}`}
+                  onClick={() => setIntroOpen(v => !v)}>
+                  {introOpen ? '☑' : '☐'} Intro
                 </button>
               </div>
             )}
@@ -1056,6 +1074,9 @@ export default function App() {
             hasAnyProgress={hasAnyProgress}
             onResetBookProgress={requestResetBookProgress}
             onSaveBookProgress={handleSaveBookProgress}
+            examples={EXAMPLES}
+            learningBooks={LEARNING_BOOKS}
+            onLoadExample={handleExampleSelect}
           />
 
           <div className="header-sep" />
@@ -1194,26 +1215,29 @@ export default function App() {
               dispatch={dispatch}
             />
           )}
-          <div className="left-world-section">
-            <div className="panel">
-              <div className="panel-title">World</div>
-              <WorldEditor world={world} sensors={sensors} simMode={sim.mode}
-                worldTool={worldTool} dispatch={dispatch} />
-            </div>
-            {/* Variables chip sits flush under the world so loop-counter
-                values are visible alongside Kara's movement during a run.
-                Renders nothing when there's no active run or no primitive
-                locals to surface — see VariablesDisplay.jsx. */}
-            <VariablesDisplay locals={runner.locals} />
-          </div>
           <div className="left-panel-scroll">
-            {notesOpen && (
-              <ChallengeContextPanel
-                introMarkdown={getIntroNotes(appMode)}
-                challenge={contextChallenge}
-                isEditing={!!editingChallenge}
-                onClose={() => setNotesOpen(false)}
-                dispatch={dispatch}
+            <WorldTabsPanel
+              challenge={contextChallenge}
+              isEditing={!!editingChallenge}
+              dispatch={dispatch}
+              cellSize={worldCellSize}
+              worldTabContent={
+                <>
+                  <WorldEditor world={world} sensors={sensors} simMode={sim.mode}
+                    worldTool={worldTool} dispatch={dispatch}
+                    cellSize={worldCellSize} onCellSizeChange={setWorldCellSize} />
+                  {/* Variables chip sits flush under the world so loop-counter
+                      values are visible alongside Kara's movement during a run.
+                      Renders nothing when there's no active run or no primitive
+                      locals to surface — see VariablesDisplay.jsx. */}
+                  <VariablesDisplay locals={runner.locals} />
+                </>
+              }
+            />
+            {introOpen && (
+              <IntroPanel
+                markdown={getIntroNotes(appMode)}
+                onClose={() => setIntroOpen(false)}
               />
             )}
             {sensorsOpen && (
@@ -1365,22 +1389,25 @@ export default function App() {
         </div>
       </div>
 
-      <div
-        className="bottom-panel panel"
-        style={
-          (challengeEditor && editorActiveTab !== 'challenges')
-            ? { display: 'none' }
-            : undefined
+      <BottomPanel
+        hidden={challengeEditor && editorActiveTab !== 'challenges'}
+        isRunActive={
+          sim.mode === 'running' || sim.mode === 'paused'
+          || runner.status === 'running' || runner.status === 'paused'
+          || runner.status === 'finished' || runner.status === 'error'
         }
+        title="Execution Log"
+        titleExtra={(sim.log.length > 0 || sim.stepCount > 0) && (
+          <span className="log-count">{Math.max(sim.log.length, sim.stepCount)} step{Math.max(sim.log.length, sim.stepCount) !== 1 ? 's' : ''}</span>
+        )}
       >
-        <div className="panel-title">
-          Execution Log
-          {sim.log.length > 0 && (
-            <span className="log-count">{sim.log.length} step{sim.log.length !== 1 ? 's' : ''}</span>
-          )}
-        </div>
-        <ExecutionLog log={sim.log} />
-      </div>
+        <ExecutionLog
+          log={sim.log}
+          output={runner.output}
+          stepCount={sim.stepCount}
+          error={sim.error}
+        />
+      </BottomPanel>
 
       {editTarget && (
         <TransitionModal fsm={fsm} editTarget={editTarget}
@@ -1481,6 +1508,68 @@ export default function App() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ── Bottom panel (Execution Log) — collapsible + resizable ────────────────
+// Auto-expands when a run starts (sim.mode goes non-edit OR runner is
+// running / paused / finished / error). Auto-collapses again on the
+// falling edge of that signal — i.e. when the user clicks Reset and we
+// return to a pure idle state. A user manual toggle is respected until
+// the next run-cycle transition.
+function BottomPanel({ hidden, isRunActive, title, titleExtra, children }) {
+  const [collapsed, setCollapsed] = useState(true);
+  const [height, setHeight]       = useState(180);
+  const dragRef = useRef(null);
+  const wasActiveRef = useRef(false);
+
+  useEffect(() => {
+    if (isRunActive && !wasActiveRef.current) {
+      // Rising edge — a run just started; show the log.
+      setCollapsed(false);
+    } else if (!isRunActive && wasActiveRef.current) {
+      // Falling edge — Reset (or natural quiet); tuck the panel away.
+      setCollapsed(true);
+    }
+    wasActiveRef.current = isRunActive;
+  }, [isRunActive]);
+
+  const toggle = () => setCollapsed(c => !c);
+
+  const onResizeStart = (e) => {
+    e.preventDefault();
+    dragRef.current = { startY: e.clientY, startHeight: height };
+    const onMove = (ev) => {
+      const dy = dragRef.current.startY - ev.clientY;
+      setHeight(Math.max(60, Math.min(500, dragRef.current.startHeight + dy)));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+  };
+
+  if (hidden) return null;
+
+  return (
+    <div className={`bottom-panel panel ${collapsed ? 'collapsed' : ''}`}>
+      <div className="bottom-panel-resizer" onMouseDown={onResizeStart} title="Drag to resize" />
+      <div className="panel-title bottom-panel-title">
+        <span>{title}</span>
+        {titleExtra}
+        <button
+          type="button"
+          className="bp-collapse-btn"
+          onClick={toggle}
+          title={collapsed ? 'Expand the log' : 'Collapse the log'}
+        >{collapsed ? '▸' : '▾'}</button>
+      </div>
+      <div className="bottom-panel-content" style={{ height: `${height}px` }}>
+        {children}
+      </div>
     </div>
   );
 }

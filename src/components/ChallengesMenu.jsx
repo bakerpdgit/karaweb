@@ -14,6 +14,9 @@ export default function ChallengesMenu({
   hasAnyProgress = false,      // true when any user-slot has progress for this book
   onResetBookProgress = null,  // () => void — opens the confirm in App.jsx
   onSaveBookProgress = null,   // () => void — exports book + embedded progress to a file
+  examples = [],               // [{ id, name }] — built-in single-challenge examples
+  learningBooks = [],          // [{ slug, title }] — multi-challenge bundled books
+  onLoadExample = null,        // (id-or-slug) => void — loads an example/book in one go
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -99,7 +102,7 @@ export default function ChallengesMenu({
           )}
           <hr className="challenges-menu-sep" />
           <button className="panels-menu-item" onClick={enterEditor}>
-            ✏️ Edit / manage challenges…{gated ? ' 🔒' : ''}
+            ✏️ Create / edit book challenges…{gated ? ' 🔒' : ''}
           </button>
           {hasAnyProgress && onSaveBookProgress && (
             <button
@@ -117,6 +120,36 @@ export default function ChallengesMenu({
             >
               🗑 Reset book progress…
             </button>
+          )}
+          {examples.length > 0 && onLoadExample && (
+            <>
+              <div className="panels-menu-subheading">⚡ Examples</div>
+              {examples.map(ex => (
+                <button
+                  key={ex.id}
+                  className="panels-menu-item"
+                  onClick={() => { setOpen(false); onLoadExample(ex.id); }}
+                  title="Load this built-in example as a one-challenge book"
+                >
+                  {ex.name}
+                </button>
+              ))}
+            </>
+          )}
+          {learningBooks.length > 0 && onLoadExample && (
+            <>
+              <div className="panels-menu-subheading">📘 Learning books</div>
+              {learningBooks.map(b => (
+                <button
+                  key={b.slug}
+                  className="panels-menu-item"
+                  onClick={() => { setOpen(false); onLoadExample(b.slug); }}
+                  title="Open this bundled multi-challenge learning book"
+                >
+                  {b.title}
+                </button>
+              ))}
+            </>
           )}
         </div>
       )}
