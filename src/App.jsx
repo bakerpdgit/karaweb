@@ -49,6 +49,7 @@ import TeacherKeyCheckModal from './components/cloudsave/TeacherKeyCheckModal.js
 import KeydetailsPasswordModal from './components/cloudsave/KeydetailsPasswordModal.jsx';
 import WelcomeSlideshow from './components/WelcomeSlideshow.jsx';
 import MainWelcomeSlideshow from './components/MainWelcomeSlideshow.jsx';
+import TeacherKeysWelcomeSlideshow from './components/TeacherKeysWelcomeSlideshow.jsx';
 import UpdateBanner from './components/UpdateBanner.jsx';
 import { useConfirmModal } from './components/ConfirmModal.jsx';
 import { checkForUpdate } from './utils/updateCheck.js';
@@ -68,6 +69,7 @@ import {
   listClassLists, getClassList, setClassList,
   getWelcomeShown, setWelcomeShown,
   getMainWelcomeShown, setMainWelcomeShown,
+  getTeacherKeysWelcomeShown, setTeacherKeysWelcomeShown,
   getSessionKeyDetails, setSessionKeyDetails,
   getSessionClasses, setSessionClasses,
   runLegacyMigrationOnce,
@@ -113,6 +115,7 @@ export default function App() {
   // teacher enters the Challenge Editor.
   const [showWelcome, setShowWelcome] = useState(false);
   const [showMainWelcome, setShowMainWelcome] = useState(false);
+  const [showTeacherKeysWelcome, setShowTeacherKeysWelcome] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [queueModalOpen, setQueueModalOpen] = useState(false);
   const fileInputRef = useRef(null);
@@ -579,6 +582,15 @@ export default function App() {
   useEffect(() => {
     if (!getMainWelcomeShown()) setShowMainWelcome(true);
   }, []);
+
+  // Teacher Keys first-visit slideshow: pops the first time the
+  // teacher actually opens the Teacher Keys tab in the editor. This is
+  // a single-slide overview of the 4-step end-to-end submission flow.
+  useEffect(() => {
+    if (challengeEditor && editorActiveTab === 'teacherKeys' && !getTeacherKeysWelcomeShown()) {
+      setShowTeacherKeysWelcome(true);
+    }
+  }, [challengeEditor, editorActiveTab]);
 
   // ── New-version-available banner ─────────────────────────────────────
   // /version.json (written by the Vite build hook) holds the deployed
@@ -1474,6 +1486,7 @@ export default function App() {
           onClose={() => setShowSettings(false)}
           onShowMainWelcome={() => setShowMainWelcome(true)}
           onShowEditorWelcome={() => setShowWelcome(true)}
+          onShowTeacherKeysWelcome={() => setShowTeacherKeysWelcome(true)}
         />
       )}
       {pwModal && (
@@ -1506,6 +1519,14 @@ export default function App() {
           onOpenTutorial={() => {
             setShowMainWelcome(false);
             setTutorialSlug(DEFAULT_TUTORIAL_SLUG);
+          }}
+        />
+      )}
+      {showTeacherKeysWelcome && (
+        <TeacherKeysWelcomeSlideshow
+          onClose={(dontShow) => {
+            if (dontShow) setTeacherKeysWelcomeShown(true);
+            setShowTeacherKeysWelcome(false);
           }}
         />
       )}

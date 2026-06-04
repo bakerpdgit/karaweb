@@ -3160,9 +3160,68 @@ html, body, #root {
 }
 .cs-link:hover { color: #1d4ed8; }
 
+/* Teacher Keys first-visit welcome — 4 numbered steps with an icon
+   each. Visually distinct from the main slideshow's bullets so the
+   teacher reads it as a process diagram. */
+.tk-welcome-steps {
+  list-style: none;
+  counter-reset: tk-step;
+  margin: 12px 0 0 0;
+  padding: 0;
+  text-align: left;
+}
+.tk-welcome-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  counter-increment: tk-step;
+  position: relative;
+}
+.tk-welcome-steps li::before {
+  content: counter(tk-step);
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tk-step-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.tk-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: #1e293b;
+  line-height: 1.4;
+}
+.tk-step-text strong { color: #0f172a; }
+
 /* About Cloud Submissions modal. */
 .about-cloud-modal {
   max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+.about-cloud-modal .about-cloud-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  padding-right: 6px;
 }
 .about-cloud-header {
   display: flex;

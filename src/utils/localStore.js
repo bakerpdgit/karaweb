@@ -267,8 +267,9 @@ export function setSessionClasses(list) {
 //   welcome.main.shown    → student / first-visit welcome slideshow
 //   welcome.editor.shown  → teacher / Challenge Editor welcome slideshow
 
-const WELCOME_MAIN_KEY   = 'welcome.main.shown';
-const WELCOME_EDITOR_KEY = 'welcome.editor.shown';
+const WELCOME_MAIN_KEY          = 'welcome.main.shown';
+const WELCOME_EDITOR_KEY        = 'welcome.editor.shown';
+const WELCOME_TEACHER_KEYS_KEY  = 'welcome.teacherKeys.shown';
 
 export function getMainWelcomeShown() {
   return safeGet(WELCOME_MAIN_KEY) === '1';
@@ -284,6 +285,14 @@ export function getWelcomeShown() {
 export function setWelcomeShown(shown) {
   if (shown) safeSet(WELCOME_EDITOR_KEY, '1');
   else safeRemove(WELCOME_EDITOR_KEY);
+}
+
+export function getTeacherKeysWelcomeShown() {
+  return safeGet(WELCOME_TEACHER_KEYS_KEY) === '1';
+}
+export function setTeacherKeysWelcomeShown(shown) {
+  if (shown) safeSet(WELCOME_TEACHER_KEYS_KEY, '1');
+  else safeRemove(WELCOME_TEACHER_KEYS_KEY);
 }
 
 // ── One-time migration from the legacy per-class scheme ─────────────────

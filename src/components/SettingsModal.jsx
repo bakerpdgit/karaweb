@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   setWelcomeShown, getWelcomeShown,
   setMainWelcomeShown, getMainWelcomeShown,
+  setTeacherKeysWelcomeShown, getTeacherKeysWelcomeShown,
 } from '../utils/localStore.js';
 
 const MODE_OPTIONS = [
@@ -16,15 +17,16 @@ const MODE_OPTIONS = [
 export default function SettingsModal({
   appMode, dirtyFsm, dirtyBlocks, dirtyPython, dispatch, pythonRunner, onClose,
   activeChallenge = null,
-  onShowMainWelcome, onShowEditorWelcome,
+  onShowMainWelcome, onShowEditorWelcome, onShowTeacherKeysWelcome,
 }) {
   const [pendingMode, setPendingMode] = useState(appMode);
-  // Local mirrors of the two "show getting-started" preferences so the
-  // checkboxes flip immediately. Ticking either also re-pops the
+  // Local mirrors of the "show getting-started" preferences so the
+  // checkboxes flip immediately. Ticking any also re-pops the
   // corresponding slideshow on the spot, in case the user wants to
   // see it now.
-  const [mainOn,   setMainOn]   = useState(() => !getMainWelcomeShown());
-  const [editorOn, setEditorOn] = useState(() => !getWelcomeShown());
+  const [mainOn,        setMainOn]        = useState(() => !getMainWelcomeShown());
+  const [editorOn,      setEditorOn]      = useState(() => !getWelcomeShown());
+  const [teacherKeysOn, setTeacherKeysOn] = useState(() => !getTeacherKeysWelcomeShown());
 
   const onToggleMain = (e) => {
     const want = e.target.checked;
@@ -46,6 +48,17 @@ export default function SettingsModal({
       onClose();
     } else {
       setWelcomeShown(true);
+    }
+  };
+  const onToggleTeacherKeys = (e) => {
+    const want = e.target.checked;
+    setTeacherKeysOn(want);
+    if (want) {
+      setTeacherKeysWelcomeShown(false);
+      onShowTeacherKeysWelcome?.();
+      onClose();
+    } else {
+      setTeacherKeysWelcomeShown(true);
     }
   };
 
@@ -143,6 +156,10 @@ export default function SettingsModal({
           <label className="settings-checkbox">
             <input type="checkbox" checked={editorOn} onChange={onToggleEditor} />
             <span>Show challenge editor getting-started instructions</span>
+          </label>
+          <label className="settings-checkbox">
+            <input type="checkbox" checked={teacherKeysOn} onChange={onToggleTeacherKeys} />
+            <span>Show teacher keys overview when opening the Teacher Keys tab</span>
           </label>
         </section>
 

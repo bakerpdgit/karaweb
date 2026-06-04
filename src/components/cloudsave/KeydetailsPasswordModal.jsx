@@ -74,7 +74,7 @@ export default function KeydetailsPasswordModal({
             </p>
             <p className="modal-help" style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 4, padding: 10, color: '#7f1d1d' }}>
               ⚠ <strong>Write it down before Accept.</strong> No reset if lost —
-              you'd need a fresh keypair and Apps Script.
+              you'd need a fresh keydetails file and to update your back store Apps Script.
             </p>
             <div className="kpwm-password-row">
               <code className="kpwm-password">{password}</code>

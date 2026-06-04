@@ -30,8 +30,11 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
   const [rememberModal, setRememberModal] = useState(null);   // {publicKeyJwk, privateKeyJwk, encryptedKeyPair?} | null
   // The user's intent for the next generate / load round-trip.
   // Persists across that one trip so generate→prompt→encrypt flow
-  // doesn't lose the choice.
+  // doesn't lose the choice. Set inside the Generate-options modal.
   const [protectPwd, setProtectPwd] = useState(false);
+  // Generate-options modal (replaces the inline checkbox). When non-null
+  // the dialog is shown; OK calls generateKeys, Cancel just closes.
+  const [genOptsModal, setGenOptsModal] = useState(null);
   // Set-password modal state. When non-null, the modal is shown.
   //   { pendingPublicJwk, pendingPrivateJwk, busy, onAfter: (encOrNull) => void }
   const [setPwModal, setSetPwModal] = useState(null);
@@ -73,7 +76,17 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
     setRememberModal(null);
   };
 
-  const generateKeys = async () => {
+  // Open the Generate-options dialog. If keys already exist, the
+  // replace-confirmation lives inside generateKeys (called from the OK
+  // button) so the teacher only sees one extra step at a time.
+  const openGenerateOptions = () => {
+    setGenOptsModal({ protectPwd });
+  };
+
+  // `protect` is passed explicitly by the Generate-options modal so we
+  // don't race React's deferred setState — the state mirror
+  // `protectPwd` is just for remembering the last choice across opens.
+  const generateKeysWithProtect = async (protect) => {
     if (keydetails) {
       const ok = await confirm({
         title: 'Replace existing keys?',
@@ -90,7 +103,7 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
       // If the teacher ticked Password-protect we route through the
       // set-password modal *before* downloading / persisting so the
       // password lives only in their head (and the encrypted file).
-      if (protectPwd) {
+      if (protect) {
         setBusyKeys(false);
         setSetPwModal({
           pendingPublicJwk: publicKeyJwk,
@@ -359,17 +372,16 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
       <section className="cl-section">
         <h3 className="cl-section-title">Your teacher keys</h3>
         <p className="cs-help">
-          You only need a keydetails file if setting up cloud submissions
-          where they are used to encrypt. One keydetails file per
-          teacher/school is used for connecting to your own data store.
+          You will need a keydetails file if setting up cloud submissions
+          where they are used to connect to your data store and to encrypt.
         </p>
 
         <div className="security-callout">
           <div className="security-callout-title">🛡 Security</div>
           <ul>
-            <li>Keep this file safe — anyone with it can read cloud submissions and it cannot be recovered if lost.</li>
-            <li>Creating and using a new keydetails file will invalidate all prior submissions because they will be unencryptable.</li>
-            <li>Choosing to apply a password-protection to a keydetails file means the password must be entered each time the keydetails are used — the password is also non-recoverable.</li>
+            <li>Keep this file safe — it cannot be recovered if lost.</li>
+            <li>Anyone with this keydetails file can read the cloud submissions although they contain no personal data, only user numbers and code submissions.</li>
+            <li>If using a new keydetails file, you will not be able to read submissions saved with a previous keydetails file.</li>
             <li><a className="cs-link" href="#" onClick={e => { e.preventDefault(); setShowAbout(true); }}>More details on how cloud submissions work…</a></li>
           </ul>
         </div>
@@ -377,7 +389,7 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
         <div className="cl-keydetails-row">
           {keydetails
             ? <span className="cl-ok">✓ Keys loaded. The Class List, Cloud Save and Analyse tabs are now enabled.</span>
-            : <span className="cl-warn">No keys loaded yet. Generate a new keydetails file, or load an existing one shared by your school.</span>}
+            : <span className="cl-warn">No keys loaded yet. Generate a new keydetails file, or load an existing one.</span>}
         </div>
         {keydetails && (
           <div className="cl-row" style={{ alignItems: 'center' }}>
@@ -452,27 +464,11 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
             >✕</button>
           </div>
         )}
-        {!keydetails && (
-          <div className="cl-row">
-            <label
-              className="tsb-check"
-              title="Generate an encrypted file with an 8-char password (no recovery if lost)."
-            >
-              <input
-                type="checkbox"
-                checked={protectPwd}
-                onChange={e => setProtectPwd(e.target.checked)}
-                disabled={busyKeys}
-              />
-              🔐 Password-protect new keydetails file
-            </label>
-          </div>
-        )}
         <div className="cl-row">
           <button
             className="btn-primary"
             disabled={busyKeys}
-            onClick={generateKeys}
+            onClick={openGenerateOptions}
           >{busyKeys ? 'Generating…' : 'Generate new keydetails'}</button>
           <button
             className="btn-secondary"
@@ -531,7 +527,52 @@ export default function TeacherKeysPanel({ keydetails, dispatch, requestPrivateK
       {showAbout && (
         <AboutCloudSubmissionsModal onClose={() => setShowAbout(false)} />
       )}
+      {genOptsModal && (
+        <GenerateKeysOptionsModal
+          initialProtect={genOptsModal.protectPwd}
+          onCancel={() => setGenOptsModal(null)}
+          onAccept={(protect) => {
+            setProtectPwd(protect);
+            setGenOptsModal(null);
+            generateKeysWithProtect(protect);
+          }}
+        />
+      )}
       {confirmModalEl}
+    </div>
+  );
+}
+
+// Small inline modal: one tickbox + OK / Cancel. Pops when the teacher
+// clicks "Generate new keydetails" so they can opt into password
+// protection without seeing the option until they're ready to act.
+function GenerateKeysOptionsModal({ initialProtect, onAccept, onCancel }) {
+  const [protect, setProtect] = useState(!!initialProtect);
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal generate-keys-modal" onClick={e => e.stopPropagation()}>
+        <h3>Generate new keydetails</h3>
+        <label
+          className="settings-checkbox"
+          title="When ticked, the keydetails file is encrypted with a password you choose. The password must be entered each time the keydetails are used — and is not recoverable."
+        >
+          <input
+            type="checkbox"
+            checked={protect}
+            onChange={e => setProtect(e.target.checked)}
+          />
+           <span>
+            🔐 <strong>Password-protect new keydetails file?</strong>
+            <span className="settings-radio-blurb">
+              {' '} Anyone with the keydetails file can read your cloud submissions from your data store (although it contains only anonymous user numbers and code submissions). Select here if you wish to additionally password protect your keydetails file. If you do so then the password must be entered each time the keydetails are used; the password is non-recoverable and not recorded anywhere so you will need to keep it safe.
+            </span>
+          </span>
+        </label>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+          <button className="btn-primary" onClick={() => onAccept(protect)} autoFocus>OK</button>
+        </div>
+      </div>
     </div>
   );
 }
