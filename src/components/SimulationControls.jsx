@@ -1,5 +1,13 @@
 import React from 'react';
 
+const MODE_OPTIONS = [
+  { value: 'fsm',    label: 'FSM' },
+  { value: 'blocks', label: 'Blocks' },
+  { value: 'python', label: 'Python' },
+];
+
+const PY_FONT_SIZES = [10, 12, 13, 14, 16, 18, 20, 22, 24, 28, 32];
+
 export default function SimulationControls({
   sim, dispatch,
   appMode = 'fsm',
@@ -7,6 +15,8 @@ export default function SimulationControls({
   runnerStatus = 'idle',
   generatePython = null,
   awaitingInput = false,
+  modeLocked = false,
+  pythonFontSize = 14,
 }) {
   const { mode, stepCount, speed } = sim;
   const isEdit    = mode === 'edit';
@@ -45,8 +55,36 @@ export default function SimulationControls({
     else      dispatch({ type: 'SIM_RESET' });
   };
 
+  const onModeChange = (e) => {
+    const next = e.target.value;
+    if (next === appMode) return;
+    dispatch({ type: 'SET_APP_MODE', mode: next });
+  };
+
+  const changeFontSize = (delta) => {
+    const idx = PY_FONT_SIZES.indexOf(pythonFontSize);
+    let next;
+    if (delta < 0) next = idx > 0 ? PY_FONT_SIZES[idx - 1] : PY_FONT_SIZES[0];
+    else next = idx >= 0 && idx < PY_FONT_SIZES.length - 1 ? PY_FONT_SIZES[idx + 1] : PY_FONT_SIZES[PY_FONT_SIZES.length - 1];
+    dispatch({ type: 'PYC_SET_FONT_SIZE', fontSize: next });
+  };
+
   return (
     <div className="sim-controls">
+      <div className="sim-mode-select" title={modeLocked
+        ? 'This challenge is locked to a single mode — the teacher has not allowed switching.'
+        : 'Switch coding mode (programs in other modes stay in memory)'}>
+        <select
+          className="sim-mode-dropdown"
+          value={appMode}
+          onChange={onModeChange}
+          disabled={modeLocked || mode !== 'edit'}
+        >
+          {MODE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
       <div className="sim-buttons">
         {isEdit && (
           <button className="sim-btn run"
@@ -102,6 +140,31 @@ export default function SimulationControls({
 
       {pyLoading && (
         <div className="sim-info"><em>Loading Python runtime…</em></div>
+      )}
+
+      {appMode === 'python' && (
+        <div className="sim-font-controls" title="Editor font size">
+          <span className="sim-font-label">Font:</span>
+          <button
+            type="button"
+            className="sim-font-btn"
+            title="Decrease font size"
+            onClick={() => changeFontSize(-1)}
+          >A−</button>
+          <button
+            type="button"
+            className="sim-font-btn"
+            title="Increase font size"
+            onClick={() => changeFontSize(+1)}
+          >A+</button>
+          <select
+            className="sim-font-select"
+            value={pythonFontSize}
+            onChange={e => dispatch({ type: 'PYC_SET_FONT_SIZE', fontSize: +e.target.value })}
+          >
+            {PY_FONT_SIZES.map(s => (<option key={s} value={s}>{s} px</option>))}
+          </select>
+        </div>
       )}
     </div>
   );

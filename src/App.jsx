@@ -12,7 +12,6 @@ const LEARNING_BOOKS = [
   { slug: 'book:intro1', title: '📘 Introduction to Programming 1' },
 ];
 import WorldEditor from './components/WorldEditor.jsx';
-import WorldThumbnail from './components/WorldThumbnail.jsx';
 import WorldTabsPanel from './components/WorldTabsPanel.jsx';
 import IntroPanel from './components/IntroPanel.jsx';
 import FSMEditor from './components/FSMEditor.jsx';
@@ -154,7 +153,18 @@ export default function App() {
     ? challenges.find(c => c.id === editingChallengeId)
     : null;
   // Whichever challenge is in scope for the side panels (notes + target).
-  const contextChallenge = editingChallenge ?? activeChallenge;
+  const rawContextChallenge = editingChallenge ?? activeChallenge;
+  // Built-in example challenges ship a `notesByMode` map so the notes
+  // panel can describe the program in the *current* mode's terms (states
+  // & transitions for FSM, blocks for Blockly, while-loops for Python).
+  // Swap the `notes` field down here so the rest of the app keeps
+  // treating it as a plain string.
+  const contextChallenge = useMemo(() => {
+    if (!rawContextChallenge?.notesByMode) return rawContextChallenge;
+    const next = rawContextChallenge.notesByMode[appMode];
+    if (!next || next === rawContextChallenge.notes) return rawContextChallenge;
+    return { ...rawContextChallenge, notes: next };
+  }, [rawContextChallenge, appMode]);
 
   // ── Per-book localStorage progress ───────────────────────────────────
   // bookGuid identifies the loaded book; userSlot scopes progress to
@@ -1003,11 +1013,6 @@ export default function App() {
     }
   }, [appMode, world, blocks.blocklyState, python.code]);
 
-  const panelTitle =
-    appMode === 'fsm'    ? 'Finite State Machine' :
-    appMode === 'blocks' ? 'Blocks' :
-                           'Python';
-
   return (
     <div className="app">
       {updateAvailable && (
@@ -1018,13 +1023,6 @@ export default function App() {
           <span className="kara-logo">🐞</span>
           <div className="app-title-text">
             <span className="app-name">KaraWeb</span>
-            <span className="app-subtitle">
-              An independent re-implementation of{' '}
-              <a href="https://www.swisseduc.ch/informatik/karatojava/"
-                 target="_blank" rel="noreferrer" className="subtitle-link">
-                classic Kara
-              </a>.
-            </span>
           </div>
         </div>
 
@@ -1221,11 +1219,13 @@ export default function App() {
               isEditing={!!editingChallenge}
               dispatch={dispatch}
               cellSize={worldCellSize}
+              onCellSizeChange={setWorldCellSize}
               worldTabContent={
                 <>
                   <WorldEditor world={world} sensors={sensors} simMode={sim.mode}
                     worldTool={worldTool} dispatch={dispatch}
-                    cellSize={worldCellSize} onCellSizeChange={setWorldCellSize} />
+                    cellSize={worldCellSize} onCellSizeChange={setWorldCellSize}
+                    sizeLocked={!!activeChallenge && !challengeEditor} />
                   {/* Variables chip sits flush under the world so loop-counter
                       values are visible alongside Kara's movement during a run.
                       Renders nothing when there's no active run or no primitive
@@ -1261,6 +1261,8 @@ export default function App() {
               runnerStatus={runner.status}
               generatePython={generatePython}
               awaitingInput={runner.awaitingInput}
+              modeLocked={!!(activeChallenge && !activeChallenge.allowModeChange)}
+              pythonFontSize={python.fontSize ?? 14}
             />
           </div>
           {challengeEditor && editorActiveTab === 'challenges' && editingChallenge && challengeResult && (
@@ -1309,7 +1311,6 @@ export default function App() {
               pythonCode={python.code}
             />
           )}
-          <div className="panel-title">{panelTitle}</div>
           {sim.error && (
             <div className="fsm-error-banner">
               <span>⚠ {sim.error}</span>

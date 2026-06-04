@@ -5,7 +5,10 @@ import { registerKaraIntellisense } from '../python/monacoKaraIntellisense.js';
 import { countPythonTokens } from '../utils/codeLimits.js';
 import { useConfirmModal } from './ConfirmModal.jsx';
 
-const FONT_SIZES = [10, 12, 13, 14, 16, 18, 20, 22, 24, 28, 32];
+// Two read-only init lines are rendered in their own Monaco editor with
+// line numbers 1–2; the student editor offsets its line numbers by this
+// amount so 'line 1' of student code is displayed as line 3 in the gutter.
+const INIT_LINE_COUNT = 2;
 
 export default function PythonEditor({ world, initWorld, python, runner, dispatch, pythonRunner, readOnly = false, pythonTokensCap = null }) {
   const monacoRef = useRef(null);
@@ -30,7 +33,10 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
 
   const fontSize = python.fontSize ?? 14;
 
-  // Track current-line + error-line decorations.
+  // Track current-line + error-line decorations. The runner reports
+  // line numbers in *student-code* coordinates (1 = first student line),
+  // but Monaco's editor model knows nothing about the read-only init
+  // header above it — student line N corresponds to Monaco range row N.
   React.useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
@@ -97,36 +103,38 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
     <div className="python-editor python-editor-monaco">
       <div className="python-init-banner">
         <div className="python-init-label">Initialization (auto from world — read-only)</div>
-        <pre className="python-init-code">{initHeader}</pre>
-      </div>
-
-      <div className="python-mono-toolbar">
-        <span className="python-mono-label">Font size:</span>
-        <button
-          className="python-mono-btn"
-          title="Decrease font size"
-          onClick={() => {
-            const idx = FONT_SIZES.indexOf(fontSize);
-            const next = idx > 0 ? FONT_SIZES[idx - 1] : FONT_SIZES[0];
-            dispatch({ type: 'PYC_SET_FONT_SIZE', fontSize: next });
-          }}
-        >A−</button>
-        <button
-          className="python-mono-btn"
-          title="Increase font size"
-          onClick={() => {
-            const idx = FONT_SIZES.indexOf(fontSize);
-            const next = idx >= 0 && idx < FONT_SIZES.length - 1 ? FONT_SIZES[idx + 1] : FONT_SIZES[FONT_SIZES.length - 1];
-            dispatch({ type: 'PYC_SET_FONT_SIZE', fontSize: next });
-          }}
-        >A+</button>
-        <select
-          className="python-mono-select"
-          value={fontSize}
-          onChange={e => dispatch({ type: 'PYC_SET_FONT_SIZE', fontSize: +e.target.value })}
+        <div
+          className="python-init-monaco-host"
+          style={{ height: fontSize * 1.5 * INIT_LINE_COUNT + 6 }}
         >
-          {FONT_SIZES.map(s => (<option key={s} value={s}>{s} px</option>))}
-        </select>
+          <Editor
+            language="python"
+            theme="vs"
+            value={initHeader}
+            options={{
+              fontSize,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              scrollBeyondLastColumn: 0,
+              tabSize: 4,
+              insertSpaces: true,
+              automaticLayout: true,
+              wordWrap: 'off',
+              scrollbar: { vertical: 'hidden', horizontal: 'hidden', handleMouseWheel: false },
+              lineNumbers: 'on',
+              lineNumbersMinChars: 3,
+              glyphMargin: false,
+              folding: false,
+              readOnly: true,
+              domReadOnly: true,
+              renderLineHighlight: 'none',
+              contextmenu: false,
+              overviewRulerBorder: false,
+              overviewRulerLanes: 0,
+              hideCursorInOverviewRuler: true,
+            }}
+          />
+        </div>
       </div>
 
       <div className="python-monaco-host">
@@ -151,7 +159,8 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
             renderWhitespace: 'selection',
             wordWrap: 'on',
             scrollbar: { vertical: 'auto', horizontal: 'auto' },
-            lineNumbers: 'on',
+            lineNumbers: (n) => String(n + INIT_LINE_COUNT),
+            lineNumbersMinChars: 3,
             readOnly,
           }}
         />

@@ -153,6 +153,12 @@ html, body, #root {
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
+  /* min-width: 0 lets descendants (the world's horizontal scroll
+     wrapper in particular) shrink below their content's intrinsic
+     min-width — without it the .left-panel's overflow-x: hidden
+     silently clips an over-wide world instead of triggering the
+     inner scrollbar. */
+  min-width: 0;
 }
 
 /* Vertical drag splitter between left and right panels */
@@ -293,6 +299,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .world-toolbar {
@@ -300,6 +307,16 @@ html, body, #root {
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
+}
+
+.world-scroll-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  /* overflow-y: hidden stops browsers from auto-promoting overflow-y to
+     auto whenever overflow-x is auto, which would otherwise paint a
+     thin always-visible vertical scrollbar strip on the right edge. */
+  overflow-y: hidden;
 }
 
 .world-grid {
@@ -311,6 +328,9 @@ html, body, #root {
   overflow: hidden;
   cursor: crosshair;
   flex-shrink: 0;
+  /* width must come from the grid template tracks, not parent stretch,
+     so the scroll wrapper above can detect overflow against the panel. */
+  width: max-content;
 }
 
 .world-cell {
@@ -397,6 +417,22 @@ html, body, #root {
   min-width: 36px;
   text-align: center;
 }
+
+/* Target-world variant — same WorldEditor component but tinted to
+   match the "this is the world you're aiming for" feel, and with the
+   crosshair cursor off (read-only). */
+.world-editor-target .world-grid {
+  background: #b45309;
+  border-color: #92400e;
+  cursor: default;
+}
+.world-editor-target .world-cell {
+  background: #fffbeb;
+}
+.world-editor-target .world-cell.has-leaf {
+  background: #fef3c7;
+}
+.world-editor-target .world-cell:hover { outline: none; }
 
 /* ── Sensor display ──────────────────────────────────────────────────────────── */
 .sensor-display {
@@ -1847,6 +1883,18 @@ html, body, #root {
   white-space: pre;
   border-top: 1px solid #cbd5e1;
 }
+/* Read-only Monaco for the init lines — uses the same font/line-number
+   metrics as the student editor below so columns and line numbers line
+   up exactly. */
+.python-init-monaco-host {
+  width: 100%;
+  border-top: 1px solid #cbd5e1;
+}
+.python-init-monaco-host .monaco-editor,
+.python-init-monaco-host .monaco-editor-background,
+.python-init-monaco-host .monaco-editor .margin {
+  background-color: #f1f5f9 !important;
+}
 
 /* Monaco font-size toolbar */
 .python-mono-toolbar {
@@ -2239,11 +2287,16 @@ html, body, #root {
 /* Tabbed panel that holds the World + Target + Notes views. The body
    has no max-height because the World tab hosts the live WorldEditor
    which has its own scroll wrapper. */
-.world-tabs-panel { margin-bottom: 8px; }
-.world-tabs-body  { padding: 0; }
-.world-tabs-body > .ctx-target,
+.world-tabs-panel { margin-bottom: 8px; min-width: 0; }
+.world-tabs-body  { padding: 0; min-width: 0; }
 .world-tabs-body > .ctx-notes,
 .world-tabs-body > .challenge-notes-inline-editor { padding: 10px 12px; }
+/* Target tab hosts a full WorldEditor that mirrors the live World tab
+   exactly — so it must sit flush against the same edges, otherwise
+   cells drift sideways when the student flips between tabs. Padding
+   on the checkpoints hint inside keeps that one row of text legible. */
+.world-tabs-body > .ctx-target { padding: 0; }
+.world-tabs-body > .ctx-target > .ctx-checkpoints-hint { margin: 0 12px 8px; }
 /* Standalone Intro panel below the tabbed panel. Closer styling to
    ctx-panel but with a fixed title (no tabs). */
 .intro-panel { margin-bottom: 8px; }
@@ -2287,7 +2340,7 @@ html, body, #root {
   transition: background 0.12s;
 }
 .ctx-view-target-btn:hover { background: #fde68a; }
-.ctx-target { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ctx-target { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; }
 .ctx-checkpoints-hint {
   font-size: 12px;
   color: #78350f;
@@ -2698,6 +2751,58 @@ html, body, #root {
   /* override the spread-around-the-header padding so the inner widget
      packs tight on the new bar */
   margin: 0;
+  width: 100%;
+}
+
+.sim-mode-select {
+  display: flex;
+  align-items: center;
+}
+.sim-mode-dropdown {
+  border: 1px solid #b45309;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #78350f;
+  cursor: pointer;
+}
+.sim-mode-dropdown:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sim-font-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid #fcd34d;
+}
+.sim-font-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #78350f;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sim-font-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.sim-font-btn:hover { background: #e2e8f0; }
+.sim-font-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: #fff;
+  font-size: 12px;
 }
 
 /* ── Editor pass/fail bar (above the right-hand editor in editor mode) ── */

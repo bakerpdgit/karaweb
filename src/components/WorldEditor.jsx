@@ -155,6 +155,14 @@ const TOOLS = [
 export default function WorldEditor({
   world, sensors, simMode, worldTool, dispatch,
   cellSize: cellSizeProp, onCellSizeChange,
+  readOnly = false,
+  variant = 'world',  // 'world' | 'target' — drives cell background
+  // When a student is playing a challenge, the world dimensions are
+  // fixed by the challenge — even though the rest of the world toolbar
+  // is editable (so they can move Kara, paint cells if the challenge
+  // permits, etc.). Locks the Width / Height inputs without locking
+  // the rest of the toolbar.
+  sizeLocked = false,
 }) {
   const [isPainting, setIsPainting] = useState(false);
   // Cell size can be lifted by the parent (so the Target World tab's
@@ -168,7 +176,14 @@ export default function WorldEditor({
     else                  setInternalCellSize(next);
   };
 
+  // In read-only mode (target world) the whole toolbar is rendered
+  // but disabled — that way the layout matches the editable world and
+  // cells stay aligned column-for-column as the student switches tabs.
+  const interactionDisabled = readOnly || simMode !== 'edit';
+  const toolbarDisabled     = readOnly || simMode !== 'edit';
+
   const applyTool = useCallback((x, y) => {
+    if (readOnly) return;
     if (simMode !== 'edit') return;
     const cell = world.cells[y][x];
     const isKara = world.kara.x === x && world.kara.y === y;
@@ -194,16 +209,17 @@ export default function WorldEditor({
       dispatch({ type: 'SET_CELL', x, y, patch: { object: obj } });
       return;
     }
-  }, [world, simMode, worldTool, dispatch]);
+  }, [world, simMode, worldTool, dispatch, readOnly]);
 
   const handleClick = useCallback((x, y) => {
+    if (readOnly) return;
     applyTool(x, y);
     if (worldTool === 'kara' && world.kara.x === x && world.kara.y === y) {
       const dirs = ['right', 'down', 'left', 'up'];
       const next = dirs[(dirs.indexOf(world.kara.direction) + 1) % 4];
       dispatch({ type: 'SET_KARA', patch: { direction: next } });
     }
-  }, [applyTool, world.kara, worldTool, dispatch]);
+  }, [applyTool, world.kara, worldTool, dispatch, readOnly]);
 
   // Build sensor highlight map + parallel wrap-direction map. A sensor
   // cell is "wrapped" when its position is on the opposite edge from
@@ -231,15 +247,17 @@ export default function WorldEditor({
   // Computed in WorldCell directly from x/y/width/height.
 
   return (
-    <div className="world-editor">
-      {/* Tool palette */}
+    <div className={`world-editor world-editor-${variant} ${readOnly ? 'is-readonly' : ''}`}>
+      {/* Tool palette — kept visible in target/readOnly mode so the
+          rows above the grid don't shift between tabs. Buttons are
+          simply disabled. */}
       <div className="world-toolbar">
         {TOOLS.map(t => (
           <button key={t.id}
             className={`tool-btn ${worldTool === t.id ? 'active' : ''}`}
             onClick={() => dispatch({ type: 'SET_WORLD_TOOL', tool: t.id })}
             title={t.label}
-            disabled={simMode !== 'edit'}
+            disabled={toolbarDisabled}
           >
             {t.icon} {t.label}
           </button>
@@ -247,7 +265,7 @@ export default function WorldEditor({
         <div className="toolbar-sep" />
         <button className="tool-btn danger"
           onClick={() => dispatch({ type: 'CLEAR_WORLD' })}
-          disabled={simMode !== 'edit'}
+          disabled={toolbarDisabled}
           title="Clear entire world"
         >
           🗑 Clear
@@ -258,30 +276,22 @@ export default function WorldEditor({
             const next = dirs[(dirs.indexOf(world.kara.direction) + 1) % 4];
             dispatch({ type: 'SET_KARA', patch: { direction: next } });
           }}
-          disabled={simMode !== 'edit'}
+          disabled={toolbarDisabled}
           title="Rotate Kara clockwise"
         >
           ↻ Rotate Kara
         </button>
-        <div className="toolbar-sep" />
-        {/* Zoom controls */}
-        <div className="zoom-control">
-          <button className="tool-btn zoom-btn"
-            onClick={() => setCellSize(s => Math.max(MIN_CELL, s - STEP))}
-            title="Shrink grid cells"
-            disabled={cellSize <= MIN_CELL}
-          >−</button>
-          <span className="zoom-label" title="Cell size">{cellSize}px</span>
-          <button className="tool-btn zoom-btn"
-            onClick={() => setCellSize(s => Math.min(MAX_CELL, s + STEP))}
-            title="Grow grid cells"
-            disabled={cellSize >= MAX_CELL}
-          >+</button>
-        </div>
       </div>
 
-      {/* Grid — scroll wrapper handles horizontal overflow when panel is narrowed */}
-      <div style={{ overflowX: 'auto' }}>
+      {/* Grid — scroll wrapper handles horizontal overflow when the
+          world is wider than the panel. width: 100% + min-width: 0 on
+          this wrapper (and the flex column above it) is what actually
+          engages the scrollbar — without those the wrapper grows with
+          its content and the overflow gets clipped by .left-panel
+          silently with no scrollbar visible. overflow-y: hidden stops
+          some browsers spawning a phantom vertical scrollbar on the
+          right whenever overflow-x is auto. */}
+      <div className="world-scroll-wrap">
         <div
           className="world-grid"
           style={{
@@ -289,7 +299,7 @@ export default function WorldEditor({
             gridTemplateRows:    `repeat(${world.height}, ${cellSize}px)`,
             '--cell-size': `${cellSize}px`,
           }}
-          onMouseDown={() => setIsPainting(true)}
+          onMouseDown={() => !readOnly && setIsPainting(true)}
           onMouseUp={() => setIsPainting(false)}
           onMouseLeave={() => setIsPainting(false)}
         >
@@ -317,7 +327,7 @@ export default function WorldEditor({
                   tool={worldTool}
                   cellSize={cellSize}
                   onClick={() => handleClick(x, y)}
-                  onEnter={() => isPainting && applyTool(x, y)}
+                  onEnter={() => !interactionDisabled && isPainting && applyTool(x, y)}
                 />
               );
             })
@@ -325,21 +335,40 @@ export default function WorldEditor({
         </div>
       </div>
 
-      {/* World size controls */}
-      {simMode === 'edit' && (
-        <div className="world-size-row">
-          <label>Width:
-            <input type="number" min="5" max="30" value={world.width}
-              onChange={e => dispatch({ type: 'RESIZE_WORLD', width: +e.target.value, height: world.height })}
-            />
-          </label>
-          <label>Height:
-            <input type="number" min="5" max="20" value={world.height}
-              onChange={e => dispatch({ type: 'RESIZE_WORLD', width: world.width, height: +e.target.value })}
-            />
-          </label>
+      {/* World size controls + zoom controls share one row so the
+          chrome above and below the grid is the same height regardless
+          of mode. In read-only/target mode the inputs render but are
+          disabled. */}
+      <div className="world-size-row">
+        <label>Width:
+          <input type="number" min="5" max="30" value={world.width}
+            disabled={toolbarDisabled || sizeLocked}
+            title={sizeLocked ? 'World size is set by this challenge' : undefined}
+            onChange={e => dispatch({ type: 'RESIZE_WORLD', width: +e.target.value, height: world.height })}
+          />
+        </label>
+        <label>Height:
+          <input type="number" min="5" max="20" value={world.height}
+            disabled={toolbarDisabled || sizeLocked}
+            title={sizeLocked ? 'World size is set by this challenge' : undefined}
+            onChange={e => dispatch({ type: 'RESIZE_WORLD', width: world.width, height: +e.target.value })}
+          />
+        </label>
+        <div className="toolbar-sep" />
+        <div className="zoom-control">
+          <button className="tool-btn zoom-btn"
+            onClick={() => setCellSize(s => Math.max(MIN_CELL, s - STEP))}
+            title="Shrink grid cells"
+            disabled={cellSize <= MIN_CELL}
+          >−</button>
+          <span className="zoom-label" title="Cell size">{cellSize}px</span>
+          <button className="tool-btn zoom-btn"
+            onClick={() => setCellSize(s => Math.min(MAX_CELL, s + STEP))}
+            title="Grow grid cells"
+            disabled={cellSize >= MAX_CELL}
+          >+</button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

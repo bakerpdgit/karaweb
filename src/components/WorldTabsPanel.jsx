@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import MarkdownView from './MarkdownView.jsx';
-import WorldThumbnail from './WorldThumbnail.jsx';
+import WorldEditor from './WorldEditor.jsx';
 
 /**
  * Top-level tabbed panel that hosts the World editor (always visible)
@@ -21,6 +21,7 @@ export default function WorldTabsPanel({
   dispatch,
   worldTabContent,        // JSX rendered inside the World tab
   cellSize = 38,           // matches the zoom level of the live World view
+  onCellSizeChange,        // shared setter — keeps both tabs at the same zoom
 }) {
   const hasTarget = !!challenge?.targetWorld;
   const hasNotes  = !!challenge && (((challenge.notes ?? '').trim()) || isEditing);
@@ -71,7 +72,16 @@ export default function WorldTabsPanel({
 
         {tab === 'target' && hasTarget && (
           <div className="ctx-target">
-            <WorldThumbnail world={challenge.targetWorld} cellSize={cellSize} />
+            <WorldEditor
+              world={challenge.targetWorld}
+              simMode="edit"
+              worldTool={null}
+              dispatch={() => {}}
+              cellSize={cellSize}
+              onCellSizeChange={onCellSizeChange}
+              readOnly
+              variant="target"
+            />
             {(challenge.intermediateCheckpoints?.length ?? 0) > 0 && (
               <p className="ctx-checkpoints-hint">
                 This challenge has {challenge.intermediateCheckpoints.length} required intermediate checkpoint{challenge.intermediateCheckpoints.length === 1 ? '' : 's'} — your program must pass through each one (in order) before reaching the target.
