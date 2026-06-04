@@ -1237,7 +1237,8 @@ export default function App() {
                   <WorldEditor world={world} sensors={sensors} simMode={sim.mode}
                     worldTool={worldTool} dispatch={dispatch}
                     cellSize={worldCellSize} onCellSizeChange={setWorldCellSize}
-                    sizeLocked={!!activeChallenge && !challengeEditor} />
+                    sizeLocked={!!activeChallenge && !challengeEditor}
+                    variant={editingChallenge && editingCheckpointIdx === (editingChallenge.intermediateCheckpoints?.length ?? 0) + 1 ? 'target' : 'world'} />
                   {/* Variables chip sits flush under the world so loop-counter
                       values are visible alongside Kara's movement during a run.
                       Renders nothing when there's no active run or no primitive
