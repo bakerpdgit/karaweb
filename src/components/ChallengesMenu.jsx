@@ -8,6 +8,7 @@ export default function ChallengesMenu({
   disabled,
   dispatch,
   onRequestExit,
+  onRequestExitBook = null,
   onRequestEnterEditor,
   gated = false,
   bookProgress = null,        // { challenges: { [guid]: { passed, attempts } } } | null
@@ -41,6 +42,12 @@ export default function ChallengesMenu({
     else                       dispatch({ type: 'CH_ENTER_EDITOR' });
   };
 
+  const exitBook = () => {
+    setOpen(false);
+    if (onRequestExitBook) onRequestExitBook();
+    else                   dispatch({ type: 'CH_EXIT_BOOK' });
+  };
+
   const exit = () => {
     setOpen(false);
     if (challengeEditor) {
@@ -61,6 +68,8 @@ export default function ChallengesMenu({
     challengeEditor ? '🎯 Editing challenges' :
     activeName     ? `🎯 ${activeName}` :
                      '🎯 Challenges…';
+  const hasOpenBook = challenges.length > 0;
+  const editBookLabel = hasOpenBook ? 'Edit book challenges…' : 'Create challenge book…';
 
   return (
     <div className="panels-menu-wrap" ref={wrapRef}>
@@ -74,6 +83,19 @@ export default function ChallengesMenu({
       </button>
       {open && (
         <div className="panels-menu challenges-menu">
+          <button className="panels-menu-item" onClick={enterEditor}>
+            ✏️ {editBookLabel}{gated ? ' 🔒' : ''}
+          </button>
+          {hasOpenBook && (
+            <button
+              className="panels-menu-item"
+              onClick={exitBook}
+              title="Close the current challenge book"
+            >
+              ⛔ Exit book{gated ? ' 🔒' : ''}
+            </button>
+          )}
+          <hr className="challenges-menu-sep" />
           {challenges.length === 0 && (
             <div className="panels-menu-item disabled">No challenges yet.</div>
           )}
@@ -100,10 +122,6 @@ export default function ChallengesMenu({
               {challengeEditor ? '⛔ Exit editor' : `⛔ Exit challenge${gated ? ' 🔒' : ''}`}
             </button>
           )}
-          <hr className="challenges-menu-sep" />
-          <button className="panels-menu-item" onClick={enterEditor}>
-            ✏️ Create / edit book challenges…{gated ? ' 🔒' : ''}
-          </button>
           {hasAnyProgress && onSaveBookProgress && (
             <button
               className="panels-menu-item"

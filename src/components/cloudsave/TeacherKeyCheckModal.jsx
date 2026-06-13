@@ -160,7 +160,10 @@ export default function TeacherKeyCheckModal({
     setStatus({ kind: 'error', message: 'Unlock cancelled. Try again or load a different file.' });
   };
 
-  const actionLabel = action === 'edit' ? 'editing challenges' : 'exiting challenge mode';
+  const actionLabel =
+    action === 'edit' ? 'editing challenges'
+    : action === 'exitBook' ? 'closing this challenge book'
+    : 'exiting challenge mode';
 
   return (
     <>

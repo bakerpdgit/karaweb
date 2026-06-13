@@ -745,6 +745,24 @@ export default function App() {
     });
   }, [loadedCloudSave, teacherKeysMatch]);
 
+  const requestExitBook = useCallback(() => {
+    if (!loadedCloudSave?.publicKeyJwk?.n) {
+      dispatch({ type: 'CH_EXIT_BOOK' });
+      return;
+    }
+    if (teacherKeysMatch) {
+      dispatch({ type: 'CH_EXIT_BOOK' });
+      return;
+    }
+    setKeyCheck({
+      action: 'exitBook',
+      onSuccess: () => {
+        setKeyCheck(null);
+        dispatch({ type: 'CH_EXIT_BOOK' });
+      },
+    });
+  }, [loadedCloudSave, teacherKeysMatch]);
+
   const requestEnterEditor = useCallback(() => {
     if (!loadedCloudSave?.publicKeyJwk?.n) {
       dispatch({ type: 'CH_ENTER_EDITOR' });
@@ -1078,6 +1096,7 @@ export default function App() {
             disabled={sim.mode !== 'edit'}
             dispatch={dispatch}
             onRequestExit={requestExitChallenge}
+            onRequestExitBook={requestExitBook}
             onRequestEnterEditor={requestEnterEditor}
             gated={!!loadedCloudSave?.publicKeyJwk?.n && !teacherKeysMatch}
             bookProgress={bookProgress}

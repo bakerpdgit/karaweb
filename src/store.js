@@ -1432,6 +1432,30 @@ function innerReducer(state, action) {
       };
     }
 
+    case 'CH_EXIT_BOOK': {
+      const snap = state.defaultSnapshot;
+      const restored = snap ? applySnapshot(state, snap) : state;
+      return {
+        ...restored,
+        challenges: [],
+        challengeWork: {},
+        challengeFileGuid: '',
+        currentChallengeId: null,
+        challengeEditor: false,
+        editingChallengeId: null,
+        editingCheckpointIdx: 0,
+        editingTarget: 'starter',
+        defaultSnapshot: null,
+        challengeResult: null,
+        scratchpadChallenge: null,
+        scratchpadReturnInfo: null,
+        loadedCloudSave: null,
+        cloudSave: { ...initialState.cloudSave },
+        studentSession: null,
+        sim: { ...restored.sim, showingSolution: false },
+      };
+    }
+
     case 'CH_RESET_TO_STARTER': {
       if (!state.currentChallengeId) return state;
       const ch = state.challenges.find(c => c.id === state.currentChallengeId);
