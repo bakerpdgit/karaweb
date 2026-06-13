@@ -62,7 +62,7 @@ export default function SetupWizard({
           </p>
           <p className="wiz-help">
             Use any email — you only need it for the signup. Come back once
-            you've confirmed your account.
+            you've confirmed your account, then click <strong>I've signed up</strong> to continue to the next step.
           </p>
         </StepCard>
       )}

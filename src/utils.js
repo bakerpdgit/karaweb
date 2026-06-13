@@ -1,4 +1,4 @@
-import { newGuid } from './utils/guid.js';
+import { newGuid, normaliseGuid } from './utils/guid.js';
 
 // ── Direction helpers ────────────────────────────────────────────────────────
 
@@ -469,8 +469,9 @@ export function parseSaveData(raw) {
   // challenges (loaded from v4 files) get guid = id so the existing
   // challengeWork[id] map keeps linking. New challenges minted in code use
   // a UUID for both fields.
-  const challenges = rawChallenges.map((c) => {
-    const withGuid = c.guid ? c : { ...c, guid: c.id };
+  const challenges = rawChallenges.map((c, idx) => {
+    const guidSource = c.guid || c.id || `${idx}:${c.name || 'challenge'}`;
+    const withGuid = { ...c, guid: normaliseGuid(guidSource, 'challenge') || newGuid() };
     // intermediateCheckpoints was added later; ensure every loaded
     // challenge carries at least an empty array so the editor and the
     // simulation can treat it uniformly.
@@ -530,19 +531,20 @@ export function parseSaveData(raw) {
     const c = raw.cloudSave;
     if (c.apiBaseUrl && c.publicKeyJwk) {
       const method = c.method === 'google-drive' ? 'google-drive' : 'codehooks';
-      if (method === 'google-drive' && c.challengeFileGuid) {
+      const cloudChallengeFileGuid = normaliseGuid(c.challengeFileGuid, 'book');
+      if (method === 'google-drive' && cloudChallengeFileGuid) {
         cloudSave = {
           schemaVersion: c.schemaVersion ?? 3,
           method: 'google-drive',
           apiBaseUrl: String(c.apiBaseUrl),
-          challengeFileGuid: String(c.challengeFileGuid),
+          challengeFileGuid: cloudChallengeFileGuid,
           publicKeyJwk: c.publicKeyJwk,
         };
-      } else if (method === 'codehooks' && c.challengeFileGuid) {
+      } else if (method === 'codehooks' && cloudChallengeFileGuid) {
         cloudSave = {
           schemaVersion: c.schemaVersion ?? 3,
           method: 'codehooks',
-          challengeFileGuid: String(c.challengeFileGuid),
+          challengeFileGuid: cloudChallengeFileGuid,
           apiBaseUrl: String(c.apiBaseUrl),
           publicKeyJwk: c.publicKeyJwk,
         };
@@ -553,11 +555,12 @@ export function parseSaveData(raw) {
     }
   }
 
-  // Top-level challengeFileGuid (v5+). If the file doesn't carry one we
-  // mint a fresh one on load so the in-memory project has stable identity.
+  // Top-level challengeFileGuid (v5+). Older bundled/teacher files may
+  // carry stable but non-backend-valid placeholders; normalise them to
+  // checked UUIDs so both cloud backends can filter by book.
   const challengeFileGuid =
     (raw.karaWebVersion >= 5 && raw.challengeFileGuid)
-      ? String(raw.challengeFileGuid)
+      ? normaliseGuid(raw.challengeFileGuid, 'book')
       : (cloudSave?.challengeFileGuid || '');
 
   // Optional embedded student progress (added by "Save progress" export).
@@ -565,17 +568,23 @@ export function parseSaveData(raw) {
   // file's own challengeFileGuid — guards against pasted-in mismatched
   // progress blobs.
   let userProgress = null;
+  const progressBookGuid = normaliseGuid(raw.userProgress?.bookGuid, 'book');
   if (raw.userProgress
       && typeof raw.userProgress === 'object'
       && raw.userProgress.challenges
       && typeof raw.userProgress.challenges === 'object'
-      && raw.userProgress.bookGuid
-      && raw.userProgress.bookGuid === challengeFileGuid) {
+      && progressBookGuid
+      && progressBookGuid === challengeFileGuid) {
+    const progressChallenges = {};
+    for (const [guid, entry] of Object.entries(raw.userProgress.challenges)) {
+      const normalised = normaliseGuid(guid, 'challenge');
+      if (normalised) progressChallenges[normalised] = entry;
+    }
     userProgress = {
-      bookGuid:  String(raw.userProgress.bookGuid),
+      bookGuid:  challengeFileGuid,
       userSlot:  String(raw.userProgress.userSlot || 'anon'),
       updatedAt: String(raw.userProgress.updatedAt || ''),
-      challenges: raw.userProgress.challenges,
+      challenges: progressChallenges,
     };
   }
 

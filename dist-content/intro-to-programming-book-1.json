@@ -83,11 +83,11 @@
   "blocks": {
     "blocklyState": null
   },
-  "challengeFileGuid": "intro1-book-0000-0000-0000-000000000000",
+  "challengeFileGuid": "399e395d-b618-4d30-924b-f353709329de-c555",
   "challenges": [
     {
       "id": "intro1-ch01-0000-0000-0000-000000000000",
-      "guid": "intro1-ch01-0000-0000-0000-000000000000",
+      "guid": "22891932-a4b6-40c5-a6b8-405c711cad4f-c706",
       "name": "1. First steps",
       "mode": "blocks",
       "notes": "# First steps\n\nKara is on a small grid facing **right**. Tell her to take **one step forward** so she lands on the cell to her right.\n\n## Concepts\n- The single action **kara.move()** advances Kara one square in the direction she's facing.",
@@ -290,7 +290,7 @@
     },
     {
       "id": "intro1-ch02-0000-0000-0000-000000000000",
-      "guid": "intro1-ch02-0000-0000-0000-000000000000",
+      "guid": "933c276f-6044-4afc-9dff-5025e3fed512-c544",
       "name": "2. Turn and go",
       "mode": "blocks",
       "notes": "# Turn and go\n\nKara is facing **right** but the target is **above** her. Turn her left (so she's facing up) then move two squares forward.\n\n## Concepts\n- **kara.turn_left()** rotates Kara 90° anti-clockwise without moving.\n- After turning, **kara.move()** moves in the new facing direction.",
@@ -549,7 +549,7 @@
     },
     {
       "id": "intro1-ch03-0000-0000-0000-000000000000",
-      "guid": "intro1-ch03-0000-0000-0000-000000000000",
+      "guid": "66cf41ac-a589-4fff-a47c-6b22255cad55-c757",
       "name": "3. Around the corner",
       "mode": "blocks",
       "notes": "# Around the corner\n\nWalk Kara in an **L-shape**: three squares to the right, then three squares up. End at the marked cell.\n\n## Concepts\n- Long programs are built from short sequences of actions.\n- The order of actions matters — write the steps from start to finish.",
@@ -916,7 +916,7 @@
     },
     {
       "id": "intro1-ch04-0000-0000-0000-000000000000",
-      "guid": "intro1-ch04-0000-0000-0000-000000000000",
+      "guid": "ff2b5f61-9e61-41ae-96d3-3b8bfe2558f8-c525",
       "name": "4. Pick that leaf",
       "mode": "blocks",
       "notes": "# Pick that leaf\n\nThere's a leaf 🍀 two squares ahead. Walk Kara onto it and **pick it up**.\n\n## Concepts\n- **kara.remove_leaf()** picks up a leaf from the cell Kara is standing on.\n- You can only remove a leaf from a cell that has one — otherwise the program errors.",
@@ -1131,7 +1131,7 @@
     },
     {
       "id": "intro1-ch05-0000-0000-0000-000000000000",
-      "guid": "intro1-ch05-0000-0000-0000-000000000000",
+      "guid": "8f2ed75e-1bc2-4471-8195-d3888557b93b-c026",
       "name": "5. Plant a leaf",
       "mode": "blocks",
       "notes": "# Plant a leaf\n\nDrop a leaf on the current cell, then walk **two** more squares forward.\n\n## Concepts\n- **kara.put_leaf()** places a leaf on the cell Kara is currently on.\n- A cell can hold at most one leaf — putting another is a no-op.",
@@ -1346,7 +1346,7 @@
     },
     {
       "id": "intro1-ch06-0000-0000-0000-000000000000",
-      "guid": "intro1-ch06-0000-0000-0000-000000000000",
+      "guid": "2a11495b-bfd0-42a8-9c3f-3fd1c9cf7e3e-c521",
       "name": "6. Five steps",
       "mode": "blocks",
       "notes": "# Five steps\n\nMove Kara **5 squares to the right**. Instead of writing `kara.move()` five times, use a **for loop** that repeats the action.\n\n## Concepts\n- A **for loop** repeats a block of code a fixed number of times.\n- In Python: `for _ in range(5):` runs the indented body five times.\n- In Blocks: the green **count with** block does the same.",
@@ -1659,7 +1659,7 @@
     },
     {
       "id": "intro1-ch07-0000-0000-0000-000000000000",
-      "guid": "intro1-ch07-0000-0000-0000-000000000000",
+      "guid": "a020ee18-fb49-4fab-a527-e38e5a8cfec1-c079",
       "name": "7. Long corridor",
       "mode": "blocks",
       "notes": "# Long corridor\n\nThe corridor is **10 squares long**. Use a for loop to walk to the end.\n\n## Concepts\n- Changing the **range** changes how many times the loop runs.\n- This pattern is much easier to read than ten copies of `kara.move()`.",
@@ -2068,7 +2068,7 @@
     },
     {
       "id": "intro1-ch08-0000-0000-0000-000000000000",
-      "guid": "intro1-ch08-0000-0000-0000-000000000000",
+      "guid": "08cdcf2d-d568-40ba-8c4d-f47764c222a4-c522",
       "name": "8. Drop a line of leaves",
       "mode": "blocks",
       "notes": "# Drop a line of leaves\n\nDrop a leaf on the starting cell and on each of the next three cells (four leaves total) while walking forward.\n\n## Concepts\n- A loop body can contain **more than one action** — they all happen each time round the loop.\n- Use `range(4)` for four iterations.",
@@ -2363,7 +2363,7 @@
     },
     {
       "id": "intro1-ch09-0000-0000-0000-000000000000",
-      "guid": "intro1-ch09-0000-0000-0000-000000000000",
+      "guid": "4e4d616a-f899-4ebd-8bc6-4874039b5ae7-c161",
       "name": "9. About turn",
       "mode": "blocks",
       "notes": "# About turn\n\nMake Kara turn **180°** using a loop with two left turns, then move two squares forward.\n\n## Concepts\n- A loop can repeat the same action a small number of times — `range(2)` for two turns.\n- After the loop, the program **continues** with the next lines.",
@@ -2616,7 +2616,7 @@
     },
     {
       "id": "intro1-ch10-0000-0000-0000-000000000000",
-      "guid": "intro1-ch10-0000-0000-0000-000000000000",
+      "guid": "8939695c-2a82-4b7b-98c0-13662769ee25-c086",
       "name": "10. Walk a square",
       "mode": "blocks",
       "notes": "# Walk a square\n\nMarch Kara around a **4-square perimeter**, dropping a leaf at each corner. Use a single `for` loop with one corner per iteration.\n\n## Concepts\n- Each iteration does the same set of actions — perfect for a regular shape.\n- Four iterations × (drop, walk three squares, turn right) brings Kara back to her starting cell.",
@@ -3061,7 +3061,7 @@
     },
     {
       "id": "intro1-ch11-0000-0000-0000-000000000000",
-      "guid": "intro1-ch11-0000-0000-0000-000000000000",
+      "guid": "3d5acd5f-a350-4b38-b87e-afc9ede70922-c841",
       "name": "11. Look first",
       "mode": "blocks",
       "notes": "# Look first\n\nThere's a tree 🌲 right in front of Kara. Write a program that moves her forward **only if the way is clear**.\n\n## Concepts\n- An **if statement** runs its body only when a condition is true.\n- `kara.tree_front()` returns `True` when a tree is one square ahead.\n- `not` flips a boolean — `not kara.tree_front()` is `True` when the way is **clear**.",
@@ -3286,7 +3286,7 @@
     },
     {
       "id": "intro1-ch12-0000-0000-0000-000000000000",
-      "guid": "intro1-ch12-0000-0000-0000-000000000000",
+      "guid": "c6fd9422-ffb8-4101-97c1-03806444425f-c767",
       "name": "12. Tree to the left",
       "mode": "blocks",
       "notes": "# Tree to the left\n\nIf there's a tree to Kara's **left**, turn her right. (Otherwise do nothing.)\n\n## Concepts\n- Different sensors test different directions: `kara.tree_left()` for the left side.\n- Sensors return **boolean** values — `True` or `False`.",
@@ -3503,7 +3503,7 @@
     },
     {
       "id": "intro1-ch13-0000-0000-0000-000000000000",
-      "guid": "intro1-ch13-0000-0000-0000-000000000000",
+      "guid": "00807925-6efa-407e-83e4-3e23b022de5c-c130",
       "name": "13. Maybe drop a leaf",
       "mode": "blocks",
       "notes": "# Maybe drop a leaf\n\nDrop a leaf on the current cell **only if** there isn't one there already.\n\n## Concepts\n- `kara.on_leaf()` returns `True` when Kara is standing on a leaf.\n- Combine with `not` to act when the cell is empty.",
@@ -3728,7 +3728,7 @@
     },
     {
       "id": "intro1-ch14-0000-0000-0000-000000000000",
-      "guid": "intro1-ch14-0000-0000-0000-000000000000",
+      "guid": "6416fc88-1647-4f8f-bed4-64fae5a9ddd1-c346",
       "name": "14. If / else",
       "mode": "blocks",
       "notes": "# If / else\n\nIf there's a tree in front, turn Kara left. **Otherwise**, move forward.\n\n## Concepts\n- An **if / else** lets you pick one of two actions.\n- Exactly one branch runs each time the if-statement is reached.",
@@ -3978,7 +3978,7 @@
     },
     {
       "id": "intro1-ch15-0000-0000-0000-000000000000",
-      "guid": "intro1-ch15-0000-0000-0000-000000000000",
+      "guid": "7954648b-da41-4dcc-a205-82fdae92818e-c951",
       "name": "15. Two ifs in sequence",
       "mode": "blocks",
       "notes": "# Two ifs in sequence\n\nTwo **separate** decisions, one after the other:\n1. If Kara is on a leaf, pick it up.\n2. If the cell in front is clear, move forward.\n\n## Concepts\n- Two independent `if` statements run **both** their checks. Either, both, or neither body might run.",
@@ -4223,7 +4223,7 @@
     },
     {
       "id": "intro1-ch16-0000-0000-0000-000000000000",
-      "guid": "intro1-ch16-0000-0000-0000-000000000000",
+      "guid": "87a90c8e-ca87-4f95-89d2-14d4a03dd98b-c938",
       "name": "16. Walk until tree",
       "mode": "blocks",
       "notes": "# Walk until tree\n\nWalk Kara forward until she's just in front of the tree. You don't know how far it is — but the **tree_front** sensor will tell you when to stop.\n\n## Concepts\n- A **while loop** repeats *as long as* a condition is true.\n- The condition is re-checked **before each iteration**.\n- This is the standard pattern for \"keep going until X\".",
@@ -4499,7 +4499,7 @@
     },
     {
       "id": "intro1-ch17-0000-0000-0000-000000000000",
-      "guid": "intro1-ch17-0000-0000-0000-000000000000",
+      "guid": "bec068d1-8929-4752-960a-ad578b007188-c317",
       "name": "17. Walk until leaf, pick it up",
       "mode": "blocks",
       "notes": "# Walk until leaf, pick it up\n\nSomewhere ahead there's a single leaf 🍀. Walk to it and pick it up.\n\n## Concepts\n- A while loop runs the body **zero or more** times depending on the condition.\n- Once the loop ends, the program **continues** with the next line — perfect for tidying up.",
@@ -4781,7 +4781,7 @@
     },
     {
       "id": "intro1-ch18-0000-0000-0000-000000000000",
-      "guid": "intro1-ch18-0000-0000-0000-000000000000",
+      "guid": "6e477174-bb69-47f3-87cd-c5ee4fec151d-c646",
       "name": "18. First leaf only",
       "mode": "blocks",
       "notes": "# First leaf only\n\nThere are **two** leaves along the row, but Kara should only pick up the **first** one she reaches and then stop.\n\n## Concepts\n- A while loop ends **as soon as** its condition becomes false — Kara stops at the first leaf.\n- The second leaf is left alone because the loop never runs again.",
@@ -5087,7 +5087,7 @@
     },
     {
       "id": "intro1-ch19-0000-0000-0000-000000000000",
-      "guid": "intro1-ch19-0000-0000-0000-000000000000",
+      "guid": "eecf1d77-cd41-4350-852e-48b11c03ba9a-c280",
       "name": "19. Harvest the row",
       "mode": "blocks",
       "notes": "# Harvest the row\n\nWalk along the row until you reach the tree. Pick up **every leaf** you find on the way.\n\n## Concepts\n- Nest an `if` **inside** a `while` loop — Kara checks for a leaf at every step.\n- The order matters: check first, **then** move.",
@@ -5407,7 +5407,7 @@
     },
     {
       "id": "intro1-ch20-0000-0000-0000-000000000000",
-      "guid": "intro1-ch20-0000-0000-0000-000000000000",
+      "guid": "1ae430a7-a710-4d10-801c-2fedb6184c5e-c008",
       "name": "20. Left-turn pathfinder",
       "mode": "blocks",
       "notes": "# Left-turn pathfinder\n\nThis is the **classic** Kara pattern. Walk forward, but if there's a tree in front, turn left instead. Repeat until you're standing on a leaf — then pick it up.\n\nIn this open corridor there are no trees to dodge, but the same code works in mazes too — try changing the world and re-running!\n\n## Concepts\n- Combine `while` with `if/else` to make a decision **every iteration**.\n- This single pattern solves many \"find your way to a goal\" tasks.",
@@ -5736,7 +5736,7 @@
     },
     {
       "id": "intro1-ch21-0000-0000-0000-000000000000",
-      "guid": "intro1-ch21-0000-0000-0000-000000000000",
+      "guid": "7c0af864-9539-41b3-859b-c22a2614d461-c834",
       "name": "21. Count to seven",
       "mode": "blocks",
       "notes": "# Count to seven\n\nUse a **variable** to count Kara's steps. Walk forward and add one to the count each step. Stop when the count reaches **7**.\n\n## Concepts\n- A **variable** stores a value you can change. Start with `count = 0`.\n- Increase a counter with `count = count + 1`.\n- A while loop with a counter is one way to repeat exactly N times.",
@@ -6183,7 +6183,7 @@
     },
     {
       "id": "intro1-ch22-0000-0000-0000-000000000000",
-      "guid": "intro1-ch22-0000-0000-0000-000000000000",
+      "guid": "e413304d-8477-4576-b091-eec7c70a6318-c764",
       "name": "22. Counting leaves",
       "mode": "blocks",
       "notes": "# Counting leaves\n\nWalk along the row to the tree. Each time you find a leaf, pick it up **and** add one to a counter. The counter doesn't change whether you pass — but it's a useful tally for the Python output.\n\n## Concepts\n- Update a counter **only when** something happens — put `count = count + 1` inside an `if`.\n- After the loop you have a useful total — try `print(count)` in Python to see it.",
@@ -6584,7 +6584,7 @@
     },
     {
       "id": "intro1-ch23-0000-0000-0000-000000000000",
-      "guid": "intro1-ch23-0000-0000-0000-000000000000",
+      "guid": "ab98a20a-a01a-48d9-ba7c-720450fabe5b-c859",
       "name": "23. Variable loop bound",
       "mode": "blocks",
       "notes": "# Variable loop bound\n\nSet a variable `steps = 5` then use it to control a for loop that moves Kara that many squares.\n\n## Concepts\n- A for loop can use a **variable** for its count — change the variable and the loop adapts.\n- This is a tiny taste of how programs adapt to different inputs.",
@@ -6930,7 +6930,7 @@
     },
     {
       "id": "intro1-ch24-0000-0000-0000-000000000000",
-      "guid": "intro1-ch24-0000-0000-0000-000000000000",
+      "guid": "2d876b73-e3bc-4ea4-b25d-9e3949728e32-c602",
       "name": "24. Every other cell",
       "mode": "blocks",
       "notes": "# Every other cell\n\nDrop leaves on **every other cell** as you walk along the row. Start by dropping one on the current cell.\n\n## Concepts\n- The **modulo** operator `%` gives the remainder after division.\n- `i % 2 == 0` is `True` when `i` is **even**.\n- Use that test to decide whether each iteration drops a leaf.",
@@ -7334,7 +7334,7 @@
     },
     {
       "id": "intro1-ch25-0000-0000-0000-000000000000",
-      "guid": "intro1-ch25-0000-0000-0000-000000000000",
+      "guid": "3f5f26d0-8296-46e7-9b47-d7d6dc4ac075-c090",
       "name": "25. Found flag",
       "mode": "blocks",
       "notes": "# Found flag\n\nUse a **boolean variable** as a flag. While `found` is `False`, keep searching. When Kara reaches the leaf, pick it up and flip the flag to `True` so the loop ends.\n\n## Concepts\n- A boolean variable holds either `True` or `False`.\n- The \"found flag\" pattern is a clean way to exit a search loop the moment a goal is reached.",
@@ -7709,7 +7709,7 @@
     },
     {
       "id": "intro1-ch26-0000-0000-0000-000000000000",
-      "guid": "intro1-ch26-0000-0000-0000-000000000000",
+      "guid": "3868d299-134a-484a-ab69-c2938db8b6ac-c843",
       "name": "26. One-shot flag",
       "mode": "blocks",
       "notes": "# One-shot flag\n\nWalk to the tree picking up **only the first leaf** you find. Leave any others on the ground.\n\n## Concepts\n- A flag can also act as a **\"have I done this yet?\"** memory.\n- Combine `and not flag` in a condition so the action runs at most once.",
@@ -8106,7 +8106,7 @@
     },
     {
       "id": "intro1-ch27-0000-0000-0000-000000000000",
-      "guid": "intro1-ch27-0000-0000-0000-000000000000",
+      "guid": "1cc55f36-4bc5-468d-9b91-e0f0ba259c6f-c435",
       "name": "27. Flag and counter",
       "mode": "blocks",
       "notes": "# Flag and counter\n\nCombine the **found flag** with a **step counter**. The flag controls the loop; the counter records how many empty cells Kara walked through before finding the leaf.\n\n## Concepts\n- Variables don't have to be alone — two (or more) variables can each play a different role.\n- Update each variable in the right place inside the loop body.",
@@ -8562,7 +8562,7 @@
     },
     {
       "id": "intro1-ch28-0000-0000-0000-000000000000",
-      "guid": "intro1-ch28-0000-0000-0000-000000000000",
+      "guid": "8865830f-7d20-44f8-acaf-ac358ae2ec16-c444",
       "name": "28. Stop at any obstacle",
       "mode": "blocks",
       "notes": "# Stop at any obstacle\n\nWalk forward until Kara meets **either** a tree **or** a mushroom. Either kind of obstacle should stop her.\n\n## Concepts\n- The **logical operators** `and`, `or`, `not` combine boolean values.\n- `a or b` is `True` when at least one of `a` and `b` is true.\n- Useful when two different conditions should both cause the same action.",
@@ -8879,7 +8879,7 @@
     },
     {
       "id": "intro1-ch29-0000-0000-0000-000000000000",
-      "guid": "intro1-ch29-0000-0000-0000-000000000000",
+      "guid": "4c5f214c-0452-453b-99d7-79f2e1f8b279-c549",
       "name": "29. Harvest mode",
       "mode": "blocks",
       "notes": "# Harvest mode\n\nSet a **string variable** `mode = \"harvest\"`. While walking the row, only pick up a leaf **if** `mode` is `\"harvest\"`. Try changing the variable to `\"skip\"` to see how the program's behaviour changes.\n\n## Concepts\n- A **string** is a text value — written in quotes, like `\"harvest\"`.\n- Compare strings with `==` (two equals signs) inside a condition.\n- A single variable can change a program's whole behaviour.",
@@ -9265,7 +9265,7 @@
     },
     {
       "id": "intro1-ch30-0000-0000-0000-000000000000",
-      "guid": "intro1-ch30-0000-0000-0000-000000000000",
+      "guid": "107f652e-a451-46e9-a595-d23445a5c197-c688",
       "name": "30. Tidy the garden",
       "mode": "blocks",
       "notes": "# Tidy the garden\n\nWalk to the tree at the end of the row picking up every leaf, counting them, and printing a friendly message at the end.\n\n## Concepts\n- This puts everything from this section together — a **while loop**, a **sensor condition**, a **counter** and a **string**.\n- Real programs combine simple building blocks like this.",
@@ -9821,7 +9821,7 @@
     },
     {
       "id": "intro1-ch31-0000-0000-0000-000000000000",
-      "guid": "intro1-ch31-0000-0000-0000-000000000000",
+      "guid": "8ddfe7f1-72e4-4106-a61d-7e37f96d2914-c424",
       "name": "31. Drop a rectangle",
       "mode": "blocks",
       "notes": "# Drop a rectangle of leaves\n\nFill a **4-wide × 3-tall** patch of cells with leaves. Use a **for loop inside another for loop** — the outer loop steps the rows, the inner loop drops a leaf in each cell of the row.\n\nWhen you reach the end of a row, turn so Kara walks back along the next row in the opposite direction (a snake / boustrophedon pattern).\n\n## Concepts\n- A loop **inside** another loop is called a **nested loop**.\n- The inner loop runs all its iterations **for each** iteration of the outer loop.\n- For an M × N rectangle the inner body runs M × N times total.",
@@ -10422,7 +10422,7 @@
     },
     {
       "id": "intro1-ch32-0000-0000-0000-000000000000",
-      "guid": "intro1-ch32-0000-0000-0000-000000000000",
+      "guid": "31edb628-8380-4d43-ac68-a65a91a0973d-c543",
       "name": "32. Mow the lawn",
       "mode": "blocks",
       "notes": "# Mow the lawn\n\nVisit **every cell** of a 5 × 3 grid in a back-and-forth (snake) pattern, dropping a leaf on each cell as proof you've been there.\n\nThe outer loop handles rows; the inner loop walks across each row. The trick: alternate directions so Kara doesn't have to teleport back to the start of every row.\n\n## Concepts\n- The **boustrophedon** (snake) pattern — alternating direction each row — is a common nested-loop shape.\n- Test `row % 2 == 0` to know which direction you should be facing.",
@@ -10895,7 +10895,7 @@
     },
     {
       "id": "intro1-ch33-0000-0000-0000-000000000000",
-      "guid": "intro1-ch33-0000-0000-0000-000000000000",
+      "guid": "6d67032b-da7d-4220-a051-00dd6e6f793a-c369",
       "name": "33. Picky harvest",
       "mode": "blocks",
       "notes": "# Picky harvest\n\nSome cells in the grid have leaves, others don't. Visit every cell (snake pattern) and pick up every leaf you find.\n\n## Concepts\n- Nest an `if` **inside** the inner loop. At each cell Kara visits, ask \"is there a leaf here?\" before acting.\n- Same outer pattern as Mow the lawn — only the inner-body changes.",
@@ -11382,7 +11382,7 @@
     },
     {
       "id": "intro1-ch34-0000-0000-0000-000000000000",
-      "guid": "intro1-ch34-0000-0000-0000-000000000000",
+      "guid": "6f30e542-cee6-411d-abe7-f1e0b37f5263-c034",
       "name": "34. Three corridors",
       "mode": "blocks",
       "notes": "# Three corridors\n\nThree corridors, one above the other, each ending in a tree. Walk Kara down each corridor in turn, dropping down to the next row when she hits the tree.\n\nThis challenge uses a **`while` inside a `for`** — the outer loop counts the three rows, the inner loop walks each row to its tree.\n\n## Concepts\n- The two loops can be **different types** — `for` outside, `while` inside (or any other combination).\n- Nesting lets you describe complex patterns with very few lines of code.",
@@ -11730,7 +11730,7 @@
     },
     {
       "id": "intro1-ch35-0000-0000-0000-000000000000",
-      "guid": "intro1-ch35-0000-0000-0000-000000000000",
+      "guid": "16d45445-9afe-469a-94ea-ad03475c17c0-c398",
       "name": "35. Garden grand total",
       "mode": "blocks",
       "notes": "# Garden grand total\n\nA 5 × 3 garden full of leaves in varied positions. Visit every cell in a snake pattern, pick up every leaf, and **keep a running total** so you can print \"Picked N leaves in total\" at the end.\n\nThis pulls together everything in Book 1: nested loops, conditionals, sensors, variables.\n\n## Concepts\n- A single counter accumulates across **both** loops — it's declared **outside** the loops.\n- Print statements aren't checked by the marker, but they make your program tell a story.",

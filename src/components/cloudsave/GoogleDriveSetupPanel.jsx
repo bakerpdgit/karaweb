@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateAppsScript } from '../../utils/googleDrive/appsScriptGenerator.js';
 import { pingAppsScript } from '../../utils/googleDrive/googleDriveClient.js';
 import { copyToClipboard } from '../../utils/copyToClipboard.js';
+
+const STEPS = [
+  { id: 1, label: 'Copy script' },
+  { id: 2, label: 'Deploy' },
+  { id: 3, label: 'Connect' },
+];
 
 /**
  * Google Drive setup panel — per-teacher Apps Script.
@@ -24,6 +30,10 @@ export default function GoogleDriveSetupPanel({ cloudSave, keydetails, dispatch,
   const [devCopied, setDevCopied]       = useState(false);
   const [busyTest, setBusyTest]         = useState(false);
   const [localStatus, setLocalStatus]   = useState(null);
+  const [step, setStep] = useState(() => {
+    if (cloudSave.registered || cloudSave.apiBaseUrl) return 3;
+    return 1;
+  });
 
   // Regenerate the script whenever the keypair (or env settings) change.
   useEffect(() => {
@@ -95,90 +105,141 @@ export default function GoogleDriveSetupPanel({ cloudSave, keydetails, dispatch,
   };
 
   return (
-    <div className="gd-panel">
-      <section className="cs-section">
-        <h3 className="cl-section-title">Step 1 — Copy the Apps Script</h3>
-        <p className="cs-help">
-          One script per teacher. No class data inside — add students any time.
-        </p>
-        {!ready && (
-          <p className="cl-hint">
-            Generate or load your keydetails (Class List tab → "Teacher keys") first.
+    <div className="wiz gd-panel">
+      <ProgressBar step={step} />
+
+      {step === 1 && (
+        <StepCard
+          title="1. Copy the Apps Script"
+          onNext={() => setStep(2)}
+          nextLabel="I've copied the script"
+          nextDisabled={!ready || generating}
+        >
+          <p>
+            One script per teacher. No class data inside — add students any time.
           </p>
-        )}
-        {ready && (
-          <>
-            <div className="wiz-copy-row">
-              <button
-                className="btn-primary wiz-copy-btn"
-                disabled={generating}
-                onClick={copyProd}
-              >{generating ? 'Generating…' : (copied ? '✓ Copied!' : `Copy script (${Math.round(scriptSource.length / 1024)} KB)`)}</button>
-              {devMode && (
-                <button
-                  className="btn-secondary wiz-copy-btn"
-                  disabled={generating}
-                  onClick={copyDev}
-                  title="Dev only: TURNSTILE_REQUIRED=false. For testing on localhost."
-                >{devCopied ? '✓ Copied!' : 'Copy dev script (no Turnstile)'}</button>
-              )}
-            </div>
-            <details className="wiz-codepreview">
-              <summary>Preview the script that will be copied</summary>
-              <textarea
-                className="wiz-code-textarea"
-                readOnly
-                rows={16}
-                value={scriptSource}
-              />
-            </details>
-          </>
-        )}
-      </section>
-
-      <section className="cs-section">
-        <h3 className="cl-section-title">Step 2 — Deploy to Google Apps Script</h3>
-        <ol className="cs-deploy-list">
-          <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer">script.google.com</a> and click <strong>New project</strong>.</li>
-          <li>Name the project <code>karaweb-yourname</code>.</li>
-          <li>Select all of the default <code>Code.gs</code> content (<kbd>Ctrl</kbd>+<kbd>A</kbd>) and delete it. Paste the copied script (<kbd>Ctrl</kbd>+<kbd>V</kbd>) and save.</li>
-          <li><strong>Deploy → New deployment</strong>. Type: <strong>Web app</strong>. <strong>Execute as: Me</strong>. <strong>Who has access: Anyone</strong>.</li>
-          <li>First-time only: Google shows an "Unverified app" warning. Click <em>Advanced → Go to {`{project name}`} (unsafe) → Allow</em>.</li>
-          <li>Copy the <strong>Web app URL</strong> Google shows you. Paste it below.</li>
-          <li>To <strong>update</strong> the script later (e.g. after rotating keys): <em>Deploy → Manage deployments → pencil → Version: New version → Deploy</em>. Same URL.</li>
-        </ol>
-        <details className="cs-details">
-          <summary>Why does the script need access to my Drive files?</summary>
-          <p>Script creates one Drive folder + one sheet per book. Use a dedicated Google account if you'd prefer isolation.</p>
-        </details>
-      </section>
-
-      <section className="cs-section">
-        <h3 className="cl-section-title">Step 3 — Paste the Web App URL</h3>
-        <div className="cl-row">
-          <label>Web app URL</label>
-          <input
-            value={cloudSave.apiBaseUrl}
-            onChange={e => dispatch({ type: 'CS_SET_FIELD', field: 'apiBaseUrl', value: e.target.value })}
-            placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-            style={{ width: 460 }}
-          />
-        </div>
-        <div className="cl-row">
-          <button
-            className="btn-primary"
-            disabled={!cloudSave.apiBaseUrl || busyTest}
-            onClick={doTestConnection}
-          >{busyTest ? 'Testing…' : 'Test connection'}</button>
-          {cloudSave.registered && (
-            <span className="cl-ok">✓ Saved.</span>
+          <p className="wiz-help">
+            After copying the script, click <strong>I've copied the script</strong> to continue to the deployment step.
+          </p>
+          {!ready && (
+            <p className="cl-hint">
+              Generate or load your keydetails (Class List tab → "Teacher keys") first.
+            </p>
           )}
-        </div>
-      </section>
+          {ready && (
+            <>
+              <div className="wiz-copy-row">
+                <button
+                  className="btn-primary wiz-copy-btn"
+                  disabled={generating}
+                  onClick={copyProd}
+                >{generating ? 'Generating…' : (copied ? '✓ Copied!' : `Copy script (${Math.round(scriptSource.length / 1024)} KB)`)}</button>
+                {devMode && (
+                  <button
+                    className="btn-secondary wiz-copy-btn"
+                    disabled={generating}
+                    onClick={copyDev}
+                    title="Dev only: TURNSTILE_REQUIRED=false. For testing on localhost."
+                  >{devCopied ? '✓ Copied!' : 'Copy dev script (no Turnstile)'}</button>
+                )}
+              </div>
+              <details className="wiz-codepreview">
+                <summary>Preview the script that will be copied</summary>
+                <textarea
+                  className="wiz-code-textarea"
+                  readOnly
+                  rows={16}
+                  value={scriptSource}
+                />
+              </details>
+            </>
+          )}
+        </StepCard>
+      )}
+
+      {step === 2 && (
+        <StepCard
+          title="2. Deploy to Google Apps Script"
+          onBack={() => setStep(1)}
+          onNext={() => setStep(3)}
+          nextLabel="I've deployed it"
+        >
+          <ol className="cs-deploy-list">
+            <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer">script.google.com</a> and click <strong>New project</strong>.</li>
+            <li>Name the project <code>karaweb-yourname</code>.</li>
+            <li>Select all of the default <code>Code.gs</code> content (<kbd>Ctrl</kbd>+<kbd>A</kbd>) and delete it. Paste the copied script (<kbd>Ctrl</kbd>+<kbd>V</kbd>) and save.</li>
+            <li><strong>Deploy → New deployment</strong>. Type: <strong>Web app</strong>. <strong>Execute as: Me</strong>. <strong>Who has access: Anyone</strong>.</li>
+            <li>First-time only: Google shows an "Unverified app" warning. Click <em>Advanced → Go to {`{project name}`} (unsafe) → Allow</em>.</li>
+            <li>Copy the <strong>Web app URL</strong> Google shows you. Paste it in KaraWeb on the next step.</li>
+            <li>To <strong>update</strong> the script later (e.g. after rotating keys): <em>Deploy → Manage deployments → pencil → Version: New version → Deploy</em>. Same URL.</li>
+          </ol>
+          <details className="cs-details">
+            <summary>Why does the script need access to my Drive files?</summary>
+            <p>Script creates one Drive folder + one sheet per book. Use a dedicated Google account if you'd prefer isolation.</p>
+          </details>
+        </StepCard>
+      )}
+
+      {step === 3 && (
+        <StepCard
+          title="3. Connect KaraWeb to your Web App"
+          onBack={() => setStep(2)}
+        >
+          <p>Paste the Google Web App URL here, then click <strong>Test connection</strong>:</p>
+          <div className="wiz-final-row">
+            <input
+              className="wiz-url-input"
+              value={cloudSave.apiBaseUrl}
+              onChange={e => dispatch({ type: 'CS_SET_FIELD', field: 'apiBaseUrl', value: e.target.value })}
+              placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+            />
+            <button
+              className="btn-primary"
+              disabled={!cloudSave.apiBaseUrl || busyTest}
+              onClick={doTestConnection}
+            >{busyTest ? 'Testing…' : 'Test connection'}</button>
+          </div>
+          {cloudSave.registered && (
+            <p className="wiz-help" style={{ color: '#0f5132' }}>
+              ✓ Connection saved. You can now save a challenges file with
+              this Google Drive backend wired in.
+            </p>
+          )}
+        </StepCard>
+      )}
 
       {localStatus?.message && (
         <div className={`cl-status cl-status-${localStatus.kind || ''}`}>{localStatus.message}</div>
       )}
+    </div>
+  );
+}
+
+function ProgressBar({ step }) {
+  return (
+    <ol className="wiz-progress">
+      {STEPS.map(s => (
+        <li
+          key={s.id}
+          className={`wiz-progress-step ${s.id === step ? 'current' : ''} ${s.id < step ? 'done' : ''}`}
+        >
+          <span className="wiz-progress-num">{s.id < step ? '✓' : s.id}</span>
+          <span className="wiz-progress-label">{s.label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function StepCard({ title, children, onBack, onNext, nextLabel, nextDisabled = false }) {
+  return (
+    <div className="wiz-card">
+      <h3 className="wiz-card-title">{title}</h3>
+      <div className="wiz-card-body">{children}</div>
+      <div className="wiz-card-actions">
+        {onBack && <button className="btn-secondary" onClick={onBack}>← Back</button>}
+        {onNext && <button className="btn-primary" disabled={nextDisabled} onClick={onNext}>{nextLabel ?? 'Next'} →</button>}
+      </div>
     </div>
   );
 }

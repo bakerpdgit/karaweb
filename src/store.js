@@ -1566,7 +1566,7 @@ function innerReducer(state, action) {
         ...state,
         challenges: action.challenges ?? [],
         challengeWork: action.challengeWork ?? {},
-        challengeFileGuid: action.challengeFileGuid || state.challengeFileGuid,
+        challengeFileGuid: action.challengeFileGuid || '',
         currentChallengeId: null,
         challengeEditor: false,
         editingChallengeId: null,
