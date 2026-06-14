@@ -1397,6 +1397,7 @@ function innerReducer(state, action) {
         challengeResult: null,
         challengeEditor: false,
         editingChallengeId: null,
+        editingCheckpointIdx: 0,
         sim: {
           ...persistedWork.sim,
           mode: 'edit',

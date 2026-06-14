@@ -130,7 +130,7 @@ export const EX2_BLOCKS = {
 // ── Example 3: Forest Circler ────────────────────────────────────────────────
 // Right-hand rule. If no tree on the right, turn right and try to step. Else
 // if blocked ahead, turn left. Else move.
-export const EX3_PYTHON = `while True:
+export const EX3_PYTHON = `for _ in range(24):
     if not kara.tree_right():
         kara.turn_right()
         if not kara.tree_front():
@@ -143,12 +143,14 @@ export const EX3_PYTHON = `while True:
 
 export const EX3_BLOCKS = {
   blocks: { languageVersion: 0, blocks: [{
-    type: 'controls_whileUntil',
-    id: 'ex3_w',
+    type: 'controls_for',
+    id: 'ex3_for',
     x: 20, y: 20,
-    fields: { MODE: 'WHILE' },
+    fields: { VAR: { id: 'var_i', name: 'i' } },
     inputs: {
-      BOOL: { block: { type: 'logic_boolean', id: 'ex3_true', fields: { BOOL: 'TRUE' } } },
+      FROM: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+      TO:   { shadow: { type: 'math_number', fields: { NUM: 24 } } },
+      BY:   { shadow: { type: 'math_number', fields: { NUM: 1 } } },
       DO: { block: {
         type: 'controls_if',
         id: 'ex3_if',

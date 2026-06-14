@@ -1,12 +1,12 @@
 import React, { useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSequence, worldsEqual } from './store.js';
 import { buildSaveData, downloadJSON, parseSaveData } from './utils.js';
-import { getIntroNotes, EXAMPLES } from './examples.js';
+import examplesBook, { getIntroNotes, EXAMPLES } from './examples.js';
 import introToProgramming1 from '../dist-content/intro-to-programming-book-1.json';
 
 // Bundled multi-challenge learning books, surfaced inside the
-// Challenges header dropdown alongside the four single-challenge
-// Examples. Each entry's `slug` maps to a string handled by
+// Challenges header dropdown alongside the four example shortcuts.
+// Each entry's `slug` maps to a string handled by
 // handleExampleSelect (e.g. 'book:intro1' is treated specially there).
 const LEARNING_BOOKS = [
   { slug: 'book:intro1', title: '📘 Introduction to Programming 1' },
@@ -849,7 +849,7 @@ export default function App() {
 
   // Shared parser/dispatcher used by both manual file uploads and the
   // `?challenges=URL` boot loader.
-  const loadParsedJson = useCallback((rawJson) => {
+  const loadParsedJson = useCallback((rawJson, preferredChallengeId = null) => {
     const parsed = parseSaveData(rawJson);
     dispatch({ type: 'LOAD_WORLD_FSM', world: parsed.world, fsm: parsed.fsm });
     if (parsed.appMode) {
@@ -872,9 +872,10 @@ export default function App() {
         cloudSave:     parsed.cloudSave,
         challengeFileGuid: parsed.challengeFileGuid,
       });
-      const firstChallenge = parsed.challenges?.[0];
-      if (firstChallenge?.id) {
-        dispatch({ type: 'CH_SELECT', id: firstChallenge.id });
+      const selectedChallenge = parsed.challenges?.find(ch => ch.id === preferredChallengeId)
+        ?? parsed.challenges?.[0];
+      if (selectedChallenge?.id) {
+        dispatch({ type: 'CH_SELECT', id: selectedChallenge.id });
       }
     }
     // If the file embeds saved progress, prompt the student to restore
@@ -955,11 +956,9 @@ export default function App() {
     setTutorialSlug(known ? slug : DEFAULT_TUTORIAL_SLUG);
   }, []);
 
-  // Loading an example installs it as a one-challenge "book" so the
-  // student gets pass/fail + Show solution semantics for free, using
-  // the same code path as loading a teacher-authored challenges file.
-  // (Pre-Phase-C, examples loaded only a world + seeded all three
-  // mode editors with the reference solutions.)
+  // Loading an example now opens the shared bundled examples book, then
+  // jumps directly to the selected challenge. The menu still presents
+  // the four examples individually, but progress belongs to one book.
   const handleExampleSelect = useCallback((id) => {
     // Bundled multi-challenge books (loaded the same way as opening a
     // teacher-shared .json file). The "book:" prefix keeps them
@@ -975,18 +974,7 @@ export default function App() {
     const ex = EXAMPLES.find(e => e.id === id);
     if (!ex) return;
     try {
-      // EXAMPLES entries are already full Challenge objects. We deep-clone
-      // by JSON round-trip so a future challenge edit doesn't mutate the
-      // shared module-level instance.
-      const challenge = JSON.parse(JSON.stringify(ex));
-      dispatch({
-        type: 'CH_REPLACE_ALL',
-        challenges: [challenge],
-        challengeWork: {},
-        challengeFileGuid: '',
-        cloudSave: null,
-      });
-      dispatch({ type: 'CH_SELECT', id: challenge.id });
+      loadParsedJson(JSON.parse(JSON.stringify(examplesBook)), id);
       setLoadError(null);
     } catch (err) {
       setLoadError(err.message);
@@ -1248,6 +1236,7 @@ export default function App() {
             <WorldTabsPanel
               challenge={contextChallenge}
               isEditing={!!editingChallenge}
+              editingCheckpointIdx={editingCheckpointIdx}
               dispatch={dispatch}
               cellSize={worldCellSize}
               onCellSizeChange={setWorldCellSize}

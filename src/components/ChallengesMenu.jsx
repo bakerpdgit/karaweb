@@ -147,7 +147,7 @@ export default function ChallengesMenu({
                   key={ex.id}
                   className="panels-menu-item"
                   onClick={() => { setOpen(false); onLoadExample(ex.id); }}
-                  title="Load this built-in example as a one-challenge book"
+                  title="Open the bundled examples book at this challenge"
                 >
                   {ex.name}
                 </button>

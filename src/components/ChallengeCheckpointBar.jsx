@@ -2,12 +2,13 @@ import React from 'react';
 import { useConfirmModal } from './ConfirmModal.jsx';
 
 /**
- * Bar rendered above the World panel while the teacher is in challenge
- * editor mode. Holds the checkpoint selector (Initial / intermediates
- * / Target / +Add) plus Copy-from-previous and Remove buttons.
+ * Action bar rendered above the World panel while the teacher is in
+ * challenge editor mode. Holds the per-checkpoint actions: add a new
+ * intermediate, copy from previous, and remove the current intermediate.
  *
- * The Starter / Solution toggle that used to live here was moved to
- * TeacherSolutionBar so the toggle sits with its explanatory blurb.
+ * Checkpoint selection itself lives in the tab strip of WorldTabsPanel
+ * (Initial / 🚩 1 / 🚩 2 / 🎯 Target / 📝 Notes), so this bar focuses on
+ * the mutations the teacher needs to manage the checkpoint sequence.
  */
 export default function ChallengeCheckpointBar({
   editing, editingCheckpointIdx, dispatch,
@@ -20,35 +21,15 @@ export default function ChallengeCheckpointBar({
   const isInitial = idx === 0;
   const isTarget  = idx === total - 1;
 
-  const labelFor = (i) => {
-    if (i === 0) return 'Initial';
-    if (i === total - 1) return 'Target';
-    return `Checkpoint ${i}`;
-  };
-
   return (
     <div className="ch-checkpoint-bar">
       <div className="ch-checkpoint-row">
-        <span className="ch-checkpoint-label">Editing:</span>
-        <div className="challenge-view-tabs">
-          {Array.from({ length: total }).map((_, i) => (
-            <button
-              key={i}
-              className={`view-tab ${i === idx ? 'active' : ''}`}
-              onClick={() => dispatch({ type: 'CH_SELECT_CHECKPOINT', idx: i })}
-              title={
-                i === 0      ? 'Initial world (where Kara starts)' :
-                i === total - 1 ? 'Target world (where Kara must finish)' :
-                                  `Intermediate checkpoint ${i}`
-              }
-            >{labelFor(i)}</button>
-          ))}
-          <button
-            className="view-tab"
-            title="Insert a new intermediate checkpoint before Target"
-            onClick={() => dispatch({ type: 'CH_ADD_CHECKPOINT' })}
-          >+ Add</button>
-        </div>
+        <span className="ch-checkpoint-label">Checkpoints:</span>
+        <button
+          className="header-btn"
+          title="Insert a new intermediate checkpoint before Target"
+          onClick={() => dispatch({ type: 'CH_ADD_CHECKPOINT' })}
+        >+ Add checkpoint</button>
         <button
           className="header-btn"
           disabled={isInitial}
@@ -76,7 +57,7 @@ export default function ChallengeCheckpointBar({
               });
               if (ok) dispatch({ type: 'CH_REMOVE_CHECKPOINT', idx });
             }}
-          >✕ Remove</button>
+          >✕ Remove checkpoint {idx}</button>
         )}
       </div>
       {modal}
