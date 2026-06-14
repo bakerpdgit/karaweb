@@ -123,8 +123,12 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
               scrollbar: { vertical: 'hidden', horizontal: 'hidden', handleMouseWheel: false },
               lineNumbers: 'on',
               lineNumbersMinChars: 3,
-              glyphMargin: false,
+              // Glyph margin + folding + decorations width must match the
+              // main editor's settings, otherwise the init code and line
+              // numbers shift sideways by a pixel or two.
+              glyphMargin: true,
               folding: false,
+              lineDecorationsWidth: 10,
               readOnly: true,
               domReadOnly: true,
               renderLineHighlight: 'none',
@@ -161,6 +165,13 @@ export default function PythonEditor({ world, initWorld, python, runner, dispatc
             scrollbar: { vertical: 'auto', horizontal: 'auto' },
             lineNumbers: (n) => String(n + INIT_LINE_COUNT),
             lineNumbersMinChars: 3,
+            // Match the init-banner editor exactly so line numbers and
+            // code start at the same horizontal position. The init has
+            // glyphMargin: true and folding: false; differences in any
+            // gutter margin shift the column by a pixel or two.
+            glyphMargin: true,
+            folding: false,
+            lineDecorationsWidth: 10,
             readOnly,
           }}
         />

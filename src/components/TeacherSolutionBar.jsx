@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { encryptForPublicKey, decryptWithPrivateKey } from '../utils/crypto/envelope.js';
+import { decryptWithPrivateKey } from '../utils/crypto/envelope.js';
 import { useConfirmModal } from './ConfirmModal.jsx';
 
 function isEnvelope(v) {
@@ -16,12 +16,15 @@ function isEnvelope(v) {
  *     ("...starter code students will see" vs "...optional solution
  *     code").
  *  3. A single "Solutions visible to students" checkbox.
- *     - Ticked → solutions stored in plaintext + students see Show.
- *     - Unticked → solutions stored encrypted with the teacher's
+ *     - Ticked → file saves the solution in plaintext + students see Show.
+ *     - Unticked → file saves the solution encrypted with the teacher's
  *       public key + Show is locked for anyone without the keys.
- *     - Disabled-and-locked-on if no keydetails (can't encrypt).
- *     Toggling triggers an async encrypt-or-decrypt of all populated
- *     mode entries in challenge.solution.
+ *     - Disabled-and-locked-on if no keydetails (can't encrypt at save).
+ *
+ *     Encryption is purely a file-format concern, applied in
+ *     App.jsx::handleSave when the flag is off. In-memory the teacher
+ *     always works with plaintext, so the toggle itself is cheap — it
+ *     just flips the flag and the next save will respect it.
  */
 export default function TeacherSolutionBar({
   editing, editingTarget, appMode, keydetails, dispatch, requestPrivateKey,
@@ -43,46 +46,7 @@ export default function TeacherSolutionBar({
       await showAlert({ message: 'Generate keydetails first to hide solutions from students.' });
       return;
     }
-    setBusy(true);
-    try {
-      const source = editing.solution || { fsm: null, blocks: null, python: '' };
-      const next = { fsm: null, blocks: null, python: '' };
-      // Decryption needs the private key, which may be password-locked.
-      const privateKeyJwk = wantVisible
-        ? (requestPrivateKey ? await requestPrivateKey() : keydetails?.privateKeyJwk)
-        : null;
-      for (const mode of ['fsm', 'blocks', 'python']) {
-        const entry = source[mode];
-        const isEmpty = entry === null || entry === undefined
-          || (typeof entry === 'string' && entry.length === 0);
-        if (isEmpty) {
-          next[mode] = mode === 'python' ? '' : null;
-          continue;
-        }
-        if (wantVisible) {
-          // Decrypt envelopes back to raw; pass-through if already raw.
-          if (typeof entry === 'string' && entry.startsWith('KaraWeb Cloud Save')) {
-            if (!privateKeyJwk) throw new Error('Decryption needs your private key.');
-            const decoded = await decryptWithPrivateKey(entry, privateKeyJwk);
-            next[mode] = decoded?.data ?? (mode === 'python' ? '' : null);
-          } else {
-            next[mode] = entry;
-          }
-        } else {
-          // Encrypt raw values; pass-through if already an envelope.
-          if (typeof entry === 'string' && entry.startsWith('KaraWeb Cloud Save')) {
-            next[mode] = entry;
-          } else {
-            next[mode] = await encryptForPublicKey({ mode, data: entry }, keydetails.publicKeyJwk);
-          }
-        }
-      }
-      dispatch({ type: 'CH_SET_SOL_VISIBILITY', id: editing.id, solution: next, visible: wantVisible });
-    } catch (err) {
-      setError(err?.message ?? String(err));
-    } finally {
-      setBusy(false);
-    }
+    dispatch({ type: 'CH_SET_SOL_VISIBILITY', id: editing.id, visible: wantVisible });
   };
 
   const blurb = showingSolution

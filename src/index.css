@@ -2127,6 +2127,24 @@ html, body, #root {
   font-weight: 700;
 }
 .challenge-list-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.challenge-list-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #78350f;
+}
+.challenge-list-select {
+  flex: 1;
+  min-width: 200px;
+  max-width: 420px;
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
 .challenge-list-btn {
   border: none;
   background: transparent;

@@ -1183,18 +1183,38 @@ function innerReducer(state, action) {
     }
 
     case 'CH_SET_SOL_VISIBILITY':
-      // Set the per-challenge visibility flag and (atomically) replace
-      // the solution data with the encrypt / decrypt result. The
-      // crypto round-trip is async, so the component performs it and
-      // hands the already-keyed data to this reducer.
+      // Toggle the per-challenge visibility flag. The in-memory
+      // `solution` is always kept in plaintext — encryption is purely
+      // a file-format concern, performed at save time when the flag
+      // is false (see App.jsx handleSave) and reversed at load time
+      // / on entering the editor (see App.jsx decrypt useEffect).
       return {
         ...state,
         challenges: state.challenges.map(c =>
           c.id === action.id
-            ? { ...c, solution: action.solution, solutionAvailableToStudents: !!action.visible }
+            ? { ...c, solutionAvailableToStudents: !!action.visible }
             : c
         ),
       };
+
+    case 'CH_DECRYPT_SOLUTION': {
+      // App.jsx performed an async decryption for the currently-edited
+      // challenge — replace the encrypted envelope entries with the
+      // plaintext and reload the editor so the python / blocks / fsm
+      // panels display the actual solution. Solutions are also
+      // updated in-memory for any subsequent edits.
+      const cid = action.id;
+      if (!cid || !action.solution) return state;
+      const newChallenges = state.challenges.map(c =>
+        c.id === cid ? { ...c, solution: action.solution } : c,
+      );
+      const next = { ...state, challenges: newChallenges };
+      if (!state.challengeEditor || state.editingChallengeId !== cid) return next;
+      if (state.editingTarget !== 'solution') return next;
+      const ch = newChallenges.find(c => c.id === cid);
+      if (!ch) return next;
+      return loadChallengeForEditing(next, ch);
+    }
 
     case 'CH_SET_EDITING_TARGET': {
       // Switch the editor between starter-code view and

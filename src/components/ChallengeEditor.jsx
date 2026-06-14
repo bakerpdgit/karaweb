@@ -151,47 +151,56 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
     dispatch({ type: 'CH_FILE_GUID_SET', guid: newGuid() });
   };
 
+  const editingIdx = editing ? challenges.findIndex(c => c.id === editing.id) : -1;
+
   return (
     <>
       <div className="challenge-editor-body">
         <div className="challenge-list">
-          {challenges.length === 0 && (
+          {challenges.length === 0 ? (
             <div className="challenge-list-empty">Click <strong>+ New challenge</strong> to create your first challenge.</div>
-          )}
-          {challenges.map((c, idx) => (
-            <div
-              key={c.id}
-              className={`challenge-list-item ${c.id === editing?.id ? 'active' : ''}`}
-              onClick={() => dispatch({ type: 'CH_SET_EDITING_CHALLENGE', id: c.id })}
-            >
-              <span className="challenge-list-name">{c.name}</span>
+          ) : (
+            <>
+              <label className="challenge-list-label" htmlFor="challenge-picker">Challenge:</label>
+              <select
+                id="challenge-picker"
+                className="challenge-list-select"
+                value={editing?.id ?? ''}
+                onChange={e => dispatch({ type: 'CH_SET_EDITING_CHALLENGE', id: e.target.value })}
+                title="Pick a challenge to edit"
+              >
+                {challenges.map((c, idx) => (
+                  <option key={c.id} value={c.id}>{idx + 1}. {c.name}</option>
+                ))}
+              </select>
               <button
-                title="Move up"
+                title="Move this challenge up in the list"
                 className="challenge-list-btn"
-                onClick={(e) => { e.stopPropagation(); dispatch({ type: 'CH_MOVE', id: c.id, delta: -1 }); }}
-                disabled={idx === 0}
+                onClick={() => editing && dispatch({ type: 'CH_MOVE', id: editing.id, delta: -1 })}
+                disabled={!editing || editingIdx <= 0}
               >↑</button>
               <button
-                title="Move down"
+                title="Move this challenge down in the list"
                 className="challenge-list-btn"
-                onClick={(e) => { e.stopPropagation(); dispatch({ type: 'CH_MOVE', id: c.id, delta: +1 }); }}
-                disabled={idx === challenges.length - 1}
+                onClick={() => editing && dispatch({ type: 'CH_MOVE', id: editing.id, delta: +1 })}
+                disabled={!editing || editingIdx === challenges.length - 1}
               >↓</button>
               <button
                 title="Delete this challenge"
                 className="challenge-list-btn danger"
-                onClick={async (e) => {
-                  e.stopPropagation();
+                disabled={!editing}
+                onClick={async () => {
+                  if (!editing) return;
                   const ok = await confirm({
-                    message: `Delete "${c.name}"?`,
+                    message: `Delete "${editing.name}"?`,
                     confirmLabel: 'Delete',
                     variant: 'danger',
                   });
-                  if (ok) dispatch({ type: 'CH_DELETE', id: c.id });
+                  if (ok) dispatch({ type: 'CH_DELETE', id: editing.id });
                 }}
-              >✕</button>
-            </div>
-          ))}
+              >✕ Delete</button>
+            </>
+          )}
           <button
             className="header-btn challenge-list-new"
             title="Add a new challenge"

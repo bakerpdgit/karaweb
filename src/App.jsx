@@ -74,7 +74,7 @@ import {
   getSessionClasses, setSessionClasses,
   runLegacyMigrationOnce,
 } from './utils/localStore.js';
-import { encryptForPublicKey } from './utils/crypto/envelope.js';
+import { encryptForPublicKey, decryptWithPrivateKey } from './utils/crypto/envelope.js';
 import { postCloudResult } from './utils/cloudClient.js';
 import { enqueueResult, flushQueue, flushAllQueues } from './utils/resultQueue.js';
 import { getTurnstileToken } from './utils/turnstile.js';
@@ -577,6 +577,65 @@ export default function App() {
     }
   }, [challengeEditor]);
 
+  // Decrypt-on-enter: when the teacher opens a challenge whose solution
+  // entries are stored as encrypted envelopes, decrypt them in memory
+  // so the right-hand code editor displays the actual solution rather
+  // than a wall of `KaraWeb Cloud Save{…}`. Encryption is a file-format
+  // concern only (re-applied in handleSave when the visibility flag is
+  // off); in-memory the teacher always works with plaintext.
+  // Effect-scoped flag tracks whether we've already prompted for the
+  // private key for this editing session, so we don't bounce the
+  // password modal at the user on every checkpoint change.
+  const decryptedChallengesRef = useRef(new Set());
+  useEffect(() => {
+    if (!challengeEditor) {
+      decryptedChallengesRef.current = new Set();
+      return undefined;
+    }
+    if (!editingChallengeId) return undefined;
+    if (!keydetails?.publicKeyJwk) return undefined;
+    if (decryptedChallengesRef.current.has(editingChallengeId)) return undefined;
+    const ch = state.challenges.find(c => c.id === editingChallengeId);
+    if (!ch?.solution) return undefined;
+    const encryptedModes = ['fsm', 'blocks', 'python'].filter(m => {
+      const v = ch.solution[m];
+      return typeof v === 'string' && v.startsWith('KaraWeb Cloud Save');
+    });
+    if (encryptedModes.length === 0) {
+      decryptedChallengesRef.current.add(editingChallengeId);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      let privateKeyJwk;
+      try {
+        privateKeyJwk = await requestPrivateKey();
+      } catch (_e) {
+        return; // user dismissed the password prompt — leave encrypted
+      }
+      if (cancelled || !privateKeyJwk) return;
+      const decrypted = { ...ch.solution };
+      let changed = false;
+      for (const m of encryptedModes) {
+        try {
+          const dec = await decryptWithPrivateKey(ch.solution[m], privateKeyJwk);
+          decrypted[m] = dec?.data ?? (m === 'python' ? '' : null);
+          changed = true;
+        } catch (err) {
+          // Decryption failed for this mode (likely wrong key); skip
+          // and leave the envelope in place rather than wiping it.
+          // eslint-disable-next-line no-console
+          console.warn(`Failed to decrypt ${m} solution for challenge ${editingChallengeId}:`, err);
+        }
+      }
+      if (cancelled || !changed) return;
+      decryptedChallengesRef.current.add(editingChallengeId);
+      dispatch({ type: 'CH_DECRYPT_SOLUTION', id: editingChallengeId, solution: decrypted });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challengeEditor, editingChallengeId, keydetails?.publicKeyJwk, state.challenges]);
+
   // Main-site welcome slideshow: pops once on first visit (any context,
   // teacher or student). Same don't-show-again localStorage pattern.
   useEffect(() => {
@@ -815,8 +874,40 @@ export default function App() {
 
   // ── Save / Load ────────────────────────────────────────────────────────────
 
-  const handleSave = useCallback((filename, cloudSaveEmbed) => {
+  const handleSave = useCallback(async (filename, cloudSaveEmbed) => {
     const snap = getSaveState(state);
+    // Re-encrypt solutions where the teacher has marked them hidden
+    // from students. The in-memory state is always plaintext (see the
+    // decrypt-on-enter useEffect above) — encryption is purely a
+    // file-format concern. If keydetails aren't loaded we fall back to
+    // saving plaintext: the student UI still hides the solution via
+    // the flag, but anyone opening the JSON file directly could read
+    // it. This is an acceptable trade-off versus refusing to save.
+    let challengesForSave = snap.challenges;
+    if (snap.challenges?.length && keydetails?.publicKeyJwk) {
+      const pub = keydetails.publicKeyJwk;
+      challengesForSave = await Promise.all(snap.challenges.map(async (ch) => {
+        if (ch.solutionAvailableToStudents) return ch;
+        const sol = ch.solution || { fsm: null, blocks: null, python: '' };
+        const out = { fsm: null, blocks: null, python: '' };
+        for (const m of ['fsm', 'blocks', 'python']) {
+          const v = sol[m];
+          const empty = v === null || v === undefined
+            || (typeof v === 'string' && v.length === 0);
+          if (empty) {
+            out[m] = m === 'python' ? '' : null;
+            continue;
+          }
+          if (typeof v === 'string' && v.startsWith('KaraWeb Cloud Save')) {
+            // Already an envelope (decryption was declined) — pass through.
+            out[m] = v;
+          } else {
+            out[m] = await encryptForPublicKey({ mode: m, data: v }, pub);
+          }
+        }
+        return { ...ch, solution: out };
+      }));
+    }
     // For google-drive cloud-save we need the file's stable GUID baked in.
     let cs = cloudSaveEmbed;
     if (cs && cs.method === 'google-drive') {
@@ -831,7 +922,7 @@ export default function App() {
         pythonCode:     snap.python?.code ?? '',
         pythonFontSize: snap.python?.fontSize ?? 14,
         name: filename,
-        challenges:    snap.challenges,
+        challenges:    challengesForSave,
         challengeWork: snap.challengeWork,
         challengeFileGuid: state.challengeFileGuid || undefined,
         cloudSave:     cs ?? null,
@@ -845,7 +936,7 @@ export default function App() {
     if ((snap.challenges?.length ?? 0) > 0) {
       setShareModal({ filename: `${filename}.json` });
     }
-  }, [state]);
+  }, [state, keydetails]);
 
   // Shared parser/dispatcher used by both manual file uploads and the
   // `?challenges=URL` boot loader.
