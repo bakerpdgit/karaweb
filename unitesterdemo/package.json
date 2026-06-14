@@ -1,9 +1,0 @@
-{
-  "name": "unitester",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Static multiple-choice practice test tool with optional Codehooks submission storage.",
-  "scripts": {
-    "check": "node --check shared.js && node --check codehooks-client.js && node --check student.js && node --check analyse.js && node --check create-test.js && node --check codehooks-backend/index.js"
-  }
-}
