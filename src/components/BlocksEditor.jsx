@@ -11,6 +11,62 @@ import { useConfirmModal } from './ConfirmModal.jsx';
 // Initialise our custom block defs once at module load.
 initBlocks();
 
+// ── Solution-view helpers ───────────────────────────────────────────────────
+
+/**
+ * Lock every block in `ws` against editing: no dragging, deleting, field
+ * edits, disabling or context menus, while leaving the workspace itself
+ * movable so the reader can pan and zoom. Used for the read-only
+ * reference-solution view.
+ */
+function lockBlocks(ws) {
+  try {
+    for (const b of ws.getAllBlocks(false)) {
+      try {
+        b.setMovable(false);
+        b.setDeletable(false);
+        b.setEditable(false);
+        b.contextMenu = false;
+      } catch {}
+    }
+    // Kill the workspace right-click menu too (undo / paste / clean up
+    // would all mutate the view).
+    ws.showContextMenu = () => {};
+  } catch (e) {
+    console.warn('Failed to lock solution blocks:', e);
+  }
+}
+
+/**
+ * Move the top blocks so their bounding box starts at (MARGIN, MARGIN) in
+ * workspace coordinates, then scroll the viewport to the origin so they
+ * render just inside the top-left corner of the canvas.
+ */
+function parkTopLeft(ws, margin = 12) {
+  try {
+    const tops = ws.getTopBlocks(false);
+    if (tops.length > 0) {
+      let minX = Infinity, minY = Infinity;
+      for (const b of tops) {
+        const xy = b.getRelativeToSurfaceXY();
+        if (xy.x < minX) minX = xy.x;
+        if (xy.y < minY) minY = xy.y;
+      }
+      const dx = margin - minX;
+      const dy = margin - minY;
+      if (dx !== 0 || dy !== 0) {
+        for (const b of tops) b.moveBy(dx, dy);
+      }
+    }
+    // `scroll` works in canvas pixels: 0,0 puts workspace origin at the
+    // top-left of the viewport, so the margin above becomes the visual
+    // inset. Blockly clamps this to its scroll bounds, which is fine.
+    ws.scroll(0, 0);
+  } catch (e) {
+    console.warn('Failed to reposition solution blocks:', e);
+  }
+}
+
 export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, readOnly = false, blocksCap = null, disallowedBlocks = [] }) {
   const userRef = useRef(null);
   const userWorkspaceRef = useRef(null);
@@ -30,13 +86,16 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
   useEffect(() => {
     if (!userRef.current) return;
     const ws = Blockly.inject(userRef.current, {
-      // In read-only mode we hide the toolbox so the user can't drag in
-      // new blocks; Blockly's own readOnly option also disables drag /
-      // mutate of existing blocks. We still allow zoom + scroll so the
-      // user can inspect.
-      readOnly,
+      // Solution-view (read-only) mode deliberately does NOT use Blockly's
+      // own `readOnly` option. A readOnly workspace is also immovable, so
+      // Blockly pins the blocks wherever its metrics put them (typically
+      // adrift to the bottom-right) and the reader can neither scroll nor
+      // drag them back into view. Instead we hide the toolbox and lock
+      // every block individually (see lockBlocks below): no editing, but
+      // the workspace itself stays pannable.
       toolbox: readOnly ? null : filterToolbox(toolboxJson, disallowedBlocks),
       trashcan: !readOnly,
+      move: { scrollbars: true, drag: true, wheel: false },
       zoom: { controls: true, wheel: false, startScale: 0.95 },
       grid: { spacing: 20, length: 3, colour: '#ccc', snap: true },
     });
@@ -65,30 +124,16 @@ export default function BlocksEditor({ blocks, runner, dispatch, pythonRunner, r
       }
     }
     // In read-only (solution view) mode there's no editing surface, so
-    // workspace pan / placement is just inspection. Reposition all top
-    // blocks so the bounding box starts near (10, 10) — otherwise the
-    // saved coords (potentially far down-right from the teacher's
-    // original layout) leave the reader scrolling.
-    if (readOnly && blocks.blocklyState) {
-      try {
-        const tops = ws.getTopBlocks(false);
-        if (tops.length > 0) {
-          let minX = Infinity, minY = Infinity;
-          for (const b of tops) {
-            const xy = b.getRelativeToSurfaceXY();
-            if (xy.x < minX) minX = xy.x;
-            if (xy.y < minY) minY = xy.y;
-          }
-          const dx = 10 - minX;
-          const dy = 10 - minY;
-          if (dx !== 0 || dy !== 0) {
-            for (const b of tops) b.moveBy(dx, dy);
-          }
-          ws.scrollbar?.set?.(0, 0);
-        }
-      } catch (e) {
-        console.warn('Failed to reposition solution blocks:', e);
-      }
+    // workspace placement is just presentation. Park the blocks near the
+    // workspace origin and scroll the view there, so the solution opens
+    // in the top-left corner instead of wherever the teacher happened to
+    // leave it when they authored the challenge.
+    if (readOnly) {
+      lockBlocks(ws);
+      parkTopLeft(ws);
+      // Drop the reposition + load from the undo stack so a stray Ctrl+Z
+      // can't shuffle the (otherwise immutable) solution around.
+      try { ws.clearUndo(); } catch {}
     }
     // Seed last-valid for the limit-revert path.
     lastValidRef.current = blocks.blocklyState ?? null;
