@@ -10,3 +10,6 @@ dist/
 # Cloudflare Wrangler local state for the Turnstile proxy worker
 cloudflare-worker/.wrangler/
 cloudflare-worker/node_modules/
+
+# Scratch output from scripts/verifyBook.mjs
+scripts/tmp/

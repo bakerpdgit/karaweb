@@ -6,6 +6,7 @@ import AnalysePanel from './analyse/AnalysePanel.jsx';
 import { useConfirmModal } from './ConfirmModal.jsx';
 import { newGuid } from '../utils/guid.js';
 import AllowedBlocksModal from './AllowedBlocksModal.jsx';
+import { allowedModesFor } from '../store.js';
 // Note: the checkpoint controls + the notes editor used to live in
 // this file's ChallengesTab — they have been moved into
 // ChallengeCheckpointBar (rendered above the world in App.jsx) and
@@ -248,6 +249,30 @@ function ChallengesTab({ challenges, editing, appMode, challengeFileGuid, dispat
                 />
                 Allow mode change
               </label>
+              {!!editing.allowModeChange && (
+                <span className="challenge-mode-options" title="Which modes the student may switch to. Untick a mode to keep it out of the dropdown (the challenge's own mode always stays available).">
+                  {[['fsm', 'FSM'], ['blocks', 'Blocks'], ['python', 'Python']].map(([value, label]) => {
+                    const current = allowedModesFor(editing);
+                    const checked = current.includes(value);
+                    return (
+                      <label key={value} className="challenge-allow-mode">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={value === editing.mode}
+                          onChange={e => {
+                            const next = e.target.checked
+                              ? [...current, value]
+                              : current.filter(m => m !== value);
+                            dispatch({ type: 'CH_SET_ALLOWED_MODES', id: editing.id, modes: next });
+                          }}
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </span>
+              )}
               <label className="challenge-allow-mode" title="When ticked, the student is capped on how much they can add beyond the starter. Configure the cap below.">
                 <input
                   type="checkbox"

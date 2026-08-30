@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { allowedModesFor } from '../store.js';
 import {
   setWelcomeShown, getWelcomeShown,
   setMainWelcomeShown, getMainWelcomeShown,
@@ -71,6 +72,11 @@ export default function SettingsModal({
   // to letting the student switch via the challenge's allowModeChange
   // flag.
   const modeLocked = !!(activeChallenge && !activeChallenge.allowModeChange);
+  // The challenge may also narrow *which* modes are on offer when
+  // switching is allowed (see challenge.allowedModes).
+  const modeOptions = activeChallenge
+    ? MODE_OPTIONS.filter(o => allowedModesFor(activeChallenge).includes(o.value))
+    : MODE_OPTIONS;
 
   const apply = () => {
     if (switching) dispatch({ type: 'SET_APP_MODE', mode: pendingMode });
@@ -104,7 +110,7 @@ export default function SettingsModal({
             </div>
           )}
 
-          {MODE_OPTIONS.map(opt => (
+          {modeOptions.map(opt => (
             <label key={opt.value} className={`settings-radio ${modeLocked ? 'disabled' : ''}`}>
               <input
                 type="radio" name="appMode" value={opt.value}

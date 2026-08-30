@@ -1723,6 +1723,19 @@ html, body, #root {
   cursor: pointer;
 }
 .challenge-allow-mode input { margin: 0; }
+/* Group of per-mode checkboxes shown next to "Allow mode change".
+   Boxed so it reads as a sub-setting of that toggle. */
+.challenge-mode-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px 1px 2px;
+  border: 1px dashed #fcd34d;
+  border-radius: 6px;
+}
+.challenge-mode-options .challenge-allow-mode { margin-left: 6px; }
+/* The challenge's own mode can't be unticked — show it as fixed. */
+.challenge-mode-options .challenge-allow-mode:has(input:disabled) { opacity: 0.6; cursor: default; }
 .settings-warn {
   background: #fffbeb;
   border: 1px solid #fcd34d;

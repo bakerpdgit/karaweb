@@ -1,8 +1,9 @@
 import React, { useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSequence, worldsEqual } from './store.js';
+import { initialState, reducer, getInitialAppMode, getSaveState, getCheckpointSequence, worldsEqual, allowedModesFor } from './store.js';
 import { buildSaveData, downloadJSON, parseSaveData } from './utils.js';
 import examplesBook, { getIntroNotes, EXAMPLES } from './examples.js';
 import introToProgramming1 from '../dist-content/intro-to-programming-book-1.json';
+import introToProgramming2 from '../dist-content/intro-to-programming-book-2.json';
 
 // Bundled multi-challenge learning books, surfaced inside the
 // Challenges header dropdown alongside the four example shortcuts.
@@ -10,6 +11,7 @@ import introToProgramming1 from '../dist-content/intro-to-programming-book-1.jso
 // handleExampleSelect (e.g. 'book:intro1' is treated specially there).
 const LEARNING_BOOKS = [
   { slug: 'book:intro1', title: '📘 Introduction to Programming 1' },
+  { slug: 'book:intro2', title: '📗 Introduction to Programming 2' },
 ];
 import WorldEditor from './components/WorldEditor.jsx';
 import WorldTabsPanel from './components/WorldTabsPanel.jsx';
@@ -369,11 +371,19 @@ export default function App() {
   // challenge mode on entry so the right editor surface is showing.
   useEffect(() => {
     if (!activeChallenge) return;
-    if (activeChallenge.allowModeChange) return;
-    if (appMode !== activeChallenge.mode) {
+    if (!activeChallenge.allowModeChange) {
+      if (appMode !== activeChallenge.mode) {
+        dispatch({ type: 'SET_APP_MODE', mode: activeChallenge.mode });
+      }
+      return;
+    }
+    // Switching is allowed, but the challenge may still exclude some
+    // modes (allowedModes) — snap back to its own mode if the student
+    // arrives carrying an excluded one.
+    if (!allowedModesFor(activeChallenge).includes(appMode)) {
       dispatch({ type: 'SET_APP_MODE', mode: activeChallenge.mode });
     }
-  }, [activeChallenge?.id, activeChallenge?.mode, activeChallenge?.allowModeChange]);
+  }, [activeChallenge?.id, activeChallenge?.mode, activeChallenge?.allowModeChange, appMode]);
 
   // ── Cloud submission of challenge results ─────────────────────────────
   // Once the challenge result is decided AND we have a cloud-save block
@@ -1054,9 +1064,13 @@ export default function App() {
     // Bundled multi-challenge books (loaded the same way as opening a
     // teacher-shared .json file). The "book:" prefix keeps them
     // distinct from the single-challenge EXAMPLES entries.
-    if (id === 'book:intro1') {
+    const BOOKS = {
+      'book:intro1': introToProgramming1,
+      'book:intro2': introToProgramming2,
+    };
+    if (BOOKS[id]) {
       try {
-        loadParsedJson(JSON.parse(JSON.stringify(introToProgramming1)));
+        loadParsedJson(JSON.parse(JSON.stringify(BOOKS[id])));
       } catch (err) {
         setLoadError(err.message);
       }
@@ -1374,6 +1388,7 @@ export default function App() {
               generatePython={generatePython}
               awaitingInput={runner.awaitingInput}
               modeLocked={!!(activeChallenge && !activeChallenge.allowModeChange)}
+              allowedModes={contextChallenge ? allowedModesFor(contextChallenge) : null}
               pythonFontSize={python.fontSize ?? 14}
             />
           </div>

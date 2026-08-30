@@ -16,8 +16,14 @@ export default function SimulationControls({
   generatePython = null,
   awaitingInput = false,
   modeLocked = false,
+  allowedModes = null,
   pythonFontSize = 14,
 }) {
+  // A challenge can narrow the offered modes (e.g. a lists/functions
+  // book that has nothing to say in FSM). null = every mode.
+  const modeOptions = Array.isArray(allowedModes) && allowedModes.length
+    ? MODE_OPTIONS.filter(o => allowedModes.includes(o.value))
+    : MODE_OPTIONS;
   const { mode, stepCount, speed } = sim;
   const isEdit    = mode === 'edit';
   const isRunning = mode === 'running';
@@ -80,7 +86,7 @@ export default function SimulationControls({
           onChange={onModeChange}
           disabled={modeLocked || mode !== 'edit'}
         >
-          {MODE_OPTIONS.map(o => (
+          {modeOptions.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>

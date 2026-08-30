@@ -218,6 +218,13 @@ function makeChallenge(world, name, mode = 'blocks', options = {}) {
     mode,
     notes: '',                   // optional markdown shown to the student
     allowModeChange: false,      // if true, student can switch mode while in this challenge
+    // Which programming modes this challenge may be taken in. `null`
+    // (the default) means all three. A subset — e.g. ['blocks','python']
+    // — hides the other modes from the mode dropdown and the Settings
+    // radio list, so a book about lists/functions need not offer FSM.
+    // Only meaningful alongside `allowModeChange`; the challenge's own
+    // `mode` is always allowed.
+    allowedModes: null,
     initialWorld: cloneWorld(world),
     targetWorld:  cloneWorld(world),
     intermediateCheckpoints: [], // ordered worlds the program must pass through
@@ -264,6 +271,22 @@ function makeChallenge(world, name, mode = 'blocks', options = {}) {
     // opposite side).
     fixedWorldEdges: false,
   };
+}
+
+// The programming modes a challenge may be taken in. Defaults to all
+// three; a challenge can narrow the list via `allowedModes` (its own
+// `mode` is always included, so a bad list can never lock the student
+// out of the editor it was authored for).
+export const ALL_APP_MODES = ['fsm', 'blocks', 'python'];
+
+export function allowedModesFor(challenge) {
+  if (!challenge) return ALL_APP_MODES;
+  const list = Array.isArray(challenge.allowedModes)
+    ? challenge.allowedModes.filter(m => ALL_APP_MODES.includes(m))
+    : null;
+  if (!list || list.length === 0) return ALL_APP_MODES;
+  const withOwn = list.includes(challenge.mode) ? list : [...list, challenge.mode];
+  return ALL_APP_MODES.filter(m => withOwn.includes(m));
 }
 
 // The full ordered sequence of worlds the student's program must touch
@@ -369,6 +392,33 @@ function persistChallengeWork(state) {
     ...state,
     challengeWork: { ...state.challengeWork, [cid]: codeSnap },
   };
+}
+
+// When the student switches programming mode inside a challenge that
+// allows it, fill the destination editor from that mode's starter if the
+// student has nothing in it yet. Returns `state` unchanged when there is
+// no active challenge, no starter for the mode, or the editor already
+// holds something.
+function seedStarterForMode(state, mode) {
+  const cid = state.currentChallengeId;
+  if (!cid) return state;
+  const ch = state.scratchpadChallenge?.id === cid
+    ? state.scratchpadChallenge
+    : state.challenges.find(c => c.id === cid);
+  if (!ch || state.sim.showingSolution) return state;
+  if (mode === 'python') {
+    if ((state.python.code ?? '').trim() !== '') return state;
+    const starter = ch.starter?.python ?? '';
+    if (!starter) return state;
+    return { ...state, python: { ...state.python, code: starter } };
+  }
+  if (mode === 'blocks') {
+    if (state.blocks.blocklyState) return state;
+    const starter = ch.starter?.blocks ?? null;
+    if (!starter) return state;
+    return { ...state, blocks: { ...state.blocks, blocklyState: starter } };
+  }
+  return state;
 }
 
 // Load a challenge's world + (user's work || starter) into the active state.
@@ -757,10 +807,18 @@ function innerReducer(state, action) {
         || state.runner.status === 'finished'
         || state.runner.status === 'error'
         || state.sim.showingSolution;
-      if (!needsReset) return { ...state, appMode: action.mode };
+      // A challenge that allows mode switching normally only loads the
+      // starter for its OWN mode (see loadChallenge). If the student
+      // switches to another mode and has nothing there yet, seed that
+      // editor from the challenge's starter for that mode — otherwise a
+      // scaffolded challenge ("fill in the function body") would open
+      // blank in the other mode. Only ever fills an EMPTY editor, so
+      // work in progress is never overwritten.
+      const seeded = seedStarterForMode(state, action.mode);
+      if (!needsReset) return { ...seeded, appMode: action.mode };
       const restored = state.sim.savedWorld ?? state.world;
       return {
-        ...state,
+        ...seeded,
         appMode: action.mode,
         world: restored,
         sensors: computeSensors(restored),
@@ -776,8 +834,8 @@ function innerReducer(state, action) {
           showingSolution: false,
         },
         runner: { ...state.runner, status: 'ready', awaitingInput: false, inputPrompt: '' },
-        blocks: { ...state.blocks, currentBlockId: null, errorBlockId: null },
-        python: { ...state.python, currentLine: null, errorLine: null },
+        blocks: { ...seeded.blocks, currentBlockId: null, errorBlockId: null },
+        python: { ...seeded.python, currentLine: null, errorLine: null },
       };
     }
 
@@ -1069,6 +1127,21 @@ function innerReducer(state, action) {
           c.id === action.id ? { ...c, notes: String(action.notes ?? '') } : c
         ),
       };
+
+    case 'CH_SET_ALLOWED_MODES': {
+      const modes = Array.isArray(action.modes)
+        ? action.modes.filter(m => m === 'fsm' || m === 'blocks' || m === 'python')
+        : null;
+      // All three (or none) means "no restriction" — store null so saved
+      // files stay clean and older clients see the default.
+      const narrowed = modes && modes.length && modes.length < 3 ? modes : null;
+      return {
+        ...state,
+        challenges: state.challenges.map(c =>
+          c.id === action.id ? { ...c, allowedModes: narrowed } : c
+        ),
+      };
+    }
 
     case 'CH_SET_ALLOW_MODE_CHANGE':
       return {

@@ -166,9 +166,19 @@ export function filterToolbox(toolbox, disallowed) {
   const banned = new Set(disallowed);
   const filterCategory = (cat) => {
     if (!Array.isArray(cat.contents)) return cat;
-    const contents = cat.contents.filter(item =>
+    const kept = cat.contents.filter(item =>
       !(item?.kind === 'block' && banned.has(item.type))
     );
+    // Drop a label that no longer heads any block — removing all the
+    // sensors would otherwise leave a bare "Sensors" heading behind.
+    const contents = kept.filter((item, i) => {
+      if (item?.kind !== 'label') return true;
+      for (let j = i + 1; j < kept.length; j++) {
+        if (kept[j]?.kind === 'label') return false;
+        if (kept[j]?.kind === 'block') return true;
+      }
+      return false;
+    });
     const hasAnyBlock = contents.some(item => item?.kind === 'block');
     if (!hasAnyBlock && !cat.custom) return null;
     return { ...cat, contents };

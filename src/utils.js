@@ -517,6 +517,11 @@ export function parseSaveData(raw) {
       disallowedBlocks: Array.isArray(withCheckpoints.disallowedBlocks)
         ? withCheckpoints.disallowedBlocks.filter(t => typeof t === 'string')
         : [],
+      // Optional narrowing of the modes offered for this challenge
+      // (null / missing = all three). Added later, so backfill.
+      allowedModes: Array.isArray(withCheckpoints.allowedModes)
+        ? withCheckpoints.allowedModes.filter(m => m === 'fsm' || m === 'blocks' || m === 'python')
+        : null,
       fixedWorldEdges: !!withCheckpoints.fixedWorldEdges,
     };
   });
