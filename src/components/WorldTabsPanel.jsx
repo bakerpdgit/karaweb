@@ -51,6 +51,18 @@ export default function WorldTabsPanel({
   const [studentTab, setStudentTab] = useState('world');
   const [editorOnNotes, setEditorOnNotes] = useState(false);
 
+  // Whenever the student moves to a different challenge, snap the panel
+  // back to the World tab — otherwise they'd land on whatever they were
+  // last reading (Target World, notes, a checkpoint) for the previous one.
+  const challengeId = challenge?.id ?? null;
+  // (Same for the teacher side: a new challenge starts on a world tab,
+  // not on whatever notes editor was open for the last one.)
+  React.useEffect(() => {
+    setStudentTab('world');
+    setShowIntermediates(false);
+    setEditorOnNotes(false);
+  }, [challengeId]);
+
   // Snap back if active tab becomes invalid (challenge cleared, target
   // gone, intermediates hidden, notes vanished etc.).
   React.useEffect(() => {
