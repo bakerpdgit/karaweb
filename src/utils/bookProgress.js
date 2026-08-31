@@ -80,11 +80,22 @@ export function getBookProgress(bookGuid, userSlot) {
   return readEntry(bookGuid, userSlot);
 }
 
+const EMPTY_CODE = { fsm: null, blocks: null, python: '' };
+
+// Merge a partial `{ fsm?, blocks?, python? }` snapshot over whatever is
+// already stored for a challenge. A challenge can be attempted in more
+// than one mode (`allowModeChange`), so a run in Python must not wipe the
+// Blocks workspace the student built earlier — only the keys actually
+// present in `code` are overwritten.
+function mergeCode(prevCode, code) {
+  return { ...EMPTY_CODE, ...(prevCode || {}), ...(code || {}) };
+}
+
 /**
  * Persist the code snapshot for a challenge run that's about to start.
  * Increments the `attempts` counter and refreshes `lastAttemptAt`.
- * `code` is `{ fsm, blocks, python }` — only the slot(s) for the
- * mode just run will be populated; others stay null/empty.
+ * `code` is a partial `{ fsm?, blocks?, python? }` — pass only the slot
+ * for the mode being run; other modes' saved code is preserved.
  */
 export function saveChallengeRun(bookGuid, userSlot, challengeGuid, code) {
   if (!bookGuid || !challengeGuid) return;
@@ -97,9 +108,37 @@ export function saveChallengeRun(bookGuid, userSlot, challengeGuid, code) {
     ...prev,
     attempts: (prev.attempts || 0) + 1,
     lastAttemptAt: now,
-    code,
+    code: mergeCode(prev.code, code),
   };
   existing.updatedAt = now;
+  writeEntry(bookGuid, userSlot, existing);
+}
+
+/**
+ * Persist code for one or more challenges WITHOUT counting an attempt or
+ * touching pass/fail. Used when the student navigates away from a
+ * challenge so unrun work survives a page reload, not just a Run.
+ * `codeByGuid` is `{ <challengeGuid>: { fsm?, blocks?, python? } }`.
+ */
+export function saveChallengeCode(bookGuid, userSlot, codeByGuid) {
+  if (!bookGuid || !codeByGuid) return;
+  const guids = Object.keys(codeByGuid);
+  if (guids.length === 0) return;
+  const existing = readEntry(bookGuid, userSlot) ?? {
+    bookGuid, userSlot, updatedAt: new Date().toISOString(), challenges: {},
+  };
+  let changed = false;
+  for (const guid of guids) {
+    const code = codeByGuid[guid];
+    if (!code) continue;
+    const prev = existing.challenges[guid] || {};
+    const merged = mergeCode(prev.code, code);
+    if (JSON.stringify(merged) === JSON.stringify(prev.code)) continue;
+    existing.challenges[guid] = { ...prev, code: merged };
+    changed = true;
+  }
+  if (!changed) return;
+  existing.updatedAt = new Date().toISOString();
   writeEntry(bookGuid, userSlot, existing);
 }
 
@@ -114,6 +153,21 @@ export function saveChallengeResult(bookGuid, userSlot, challengeGuid, passed) {
   const prev = existing.challenges[challengeGuid];
   if (!prev) return;
   existing.challenges[challengeGuid] = { ...prev, passed: !!passed };
+  existing.updatedAt = new Date().toISOString();
+  writeEntry(bookGuid, userSlot, existing);
+}
+
+/**
+ * Drop the stored code for one challenge, leaving pass/fail + attempts
+ * alone. Used by "Reset code" so the starter really comes back on the
+ * next page load instead of the saved attempt reappearing.
+ */
+export function clearChallengeCode(bookGuid, userSlot, challengeGuid) {
+  if (!bookGuid || !challengeGuid) return;
+  const existing = readEntry(bookGuid, userSlot);
+  const prev = existing?.challenges?.[challengeGuid];
+  if (!prev || !prev.code) return;
+  existing.challenges[challengeGuid] = { ...prev, code: null };
   existing.updatedAt = new Date().toISOString();
   writeEntry(bookGuid, userSlot, existing);
 }

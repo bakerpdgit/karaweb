@@ -27,7 +27,8 @@ import TutorialModal from './components/TutorialModal.jsx';
 import { TUTORIAL_CHAPTERS, DEFAULT_TUTORIAL_SLUG } from './tutorial/index.js';
 import {
   resolveUserSlot, getBookProgress, saveChallengeRun, saveChallengeResult,
-  clearBookProgress, listBookProgressSlots, importBookProgress,
+  saveChallengeCode, clearChallengeCode, clearBookProgress, listBookProgressSlots,
+  importBookProgress,
 } from './utils/bookProgress.js';
 import { validateBlocksState, summariseIssues } from './utils/blocksValidate.js';
 import SaveDialog from './components/SaveDialog.jsx';
@@ -264,6 +265,26 @@ export default function App() {
 
   const pythonRunner = usePythonRunner({ appMode, world, sim, dispatch });
 
+  // ── Tidy the Python worker when the coding context changes ───────────
+  // Moving to another challenge, into/out of the challenge editor, out of
+  // the book, or switching programming mode while a Python program is
+  // still live leaves the pyodide worker mid-run — and if it was parked on
+  // an input() prompt it is blocked inside a synchronous XHR and can never
+  // process the next Run. The reducer has already reset the visible sim
+  // state by this point; this bins the stale worker and pre-warms a fresh
+  // one so the next Run behaves.
+  const codingContextKey = [
+    currentChallengeId ?? '',
+    challengeEditor ? (editingChallengeId ?? 'editor') : '',
+    appMode,
+  ].join('|');
+  const lastCodingContextRef = useRef(codingContextKey);
+  useEffect(() => {
+    if (lastCodingContextRef.current === codingContextKey) return;
+    lastCodingContextRef.current = codingContextKey;
+    pythonRunner.abandonRun();
+  }, [codingContextKey, pythonRunner]);
+
   // FSM-mode auto-run interval; python modes are driven by the worker itself.
   useEffect(() => {
     if (appMode !== 'fsm') return;
@@ -304,7 +325,9 @@ export default function App() {
     if (!currentChallengeId || challengeEditor || scratchpadChallenge) return;
     const ch = challenges.find(c => c.id === currentChallengeId);
     if (!ch || !bookGuid || !ch.guid) return;
-    const code = { fsm: null, blocks: null, python: '' };
+    // Only the mode actually being run — saveChallengeRun merges it over
+    // whatever the student previously stored for the other modes.
+    const code = {};
     if (appMode === 'fsm')    code.fsm    = fsm;
     if (appMode === 'blocks') code.blocks = blocks.blocklyState;
     if (appMode === 'python') code.python = python.code;
@@ -312,6 +335,30 @@ export default function App() {
     setProgressTick(t => t + 1);
   }, [sim.mode, runner.status, currentChallengeId, challengeEditor, scratchpadChallenge,
       challenges, bookGuid, userSlot, appMode, fsm, blocks.blocklyState, python.code]);
+
+  // ── Progress save: code snapshot on navigation ───────────────────────
+  // The reducer banks the student's code into `challengeWork` whenever
+  // they leave a challenge or switch programming mode. Mirror that into
+  // localStorage so work survives a reload even when they never pressed
+  // Run — and so a challenge attempted in Python keeps its Python
+  // alongside any Blocks work stored for the same challenge.
+  const lastWorkSaveKeyRef = useRef(`${bookGuid}|${userSlot}`);
+  useEffect(() => {
+    const key = `${bookGuid}|${userSlot}`;
+    const prevKey = lastWorkSaveKeyRef.current;
+    lastWorkSaveKeyRef.current = key;
+    if (!bookGuid) return;
+    // The book or the active student just changed: `challengeWork` still
+    // holds the previous slot's work and is about to be re-hydrated.
+    // Writing it now would copy one student's code into another's slot.
+    if (key !== prevKey) return;
+    const codeByGuid = {};
+    for (const ch of challenges) {
+      const work = challengeWork[ch.id];
+      if (ch.guid && work) codeByGuid[ch.guid] = work;
+    }
+    saveChallengeCode(bookGuid, userSlot, codeByGuid);
+  }, [challengeWork, challenges, bookGuid, userSlot]);
 
   // ── Progress save: pass/fail at result-time ──────────────────────────
   // Watches challengeResult for the transition from null to non-null;
@@ -1287,7 +1334,16 @@ export default function App() {
               <button
                 className="header-btn"
                 title="Restore the starter code for this challenge"
-                onClick={() => dispatch({ type: 'CH_RESET_TO_STARTER' })}
+                onClick={() => {
+                  // Drop the saved attempt from localStorage too, or the
+                  // next page load would restore the code the student
+                  // just asked to throw away.
+                  if (bookGuid && activeChallenge?.guid) {
+                    clearChallengeCode(bookGuid, userSlot, activeChallenge.guid);
+                    setProgressTick(t => t + 1);
+                  }
+                  dispatch({ type: 'CH_RESET_TO_STARTER' });
+                }}
                 disabled={sim.mode !== 'edit'}
               >Reset code</button>
               {hasNextChallenge && (

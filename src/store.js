@@ -289,6 +289,16 @@ export function allowedModesFor(challenge) {
   return ALL_APP_MODES.filter(m => withOwn.includes(m));
 }
 
+// The modes a *student* may actually work in for this challenge: the
+// allowed list when the teacher ticked `allowModeChange`, otherwise just
+// the challenge's own mode. Used for sticky mode selection when moving
+// between challenges.
+export function studentModesFor(challenge) {
+  if (!challenge) return ALL_APP_MODES;
+  if (!challenge.allowModeChange) return [challenge.mode];
+  return allowedModesFor(challenge);
+}
+
 // The full ordered sequence of worlds the student's program must touch
 // during execution: [initial, ...intermediateCheckpoints, target].
 export function getCheckpointSequence(ch) {
@@ -379,15 +389,23 @@ function persistEditingChallenge(state) {
 }
 
 // Save in-progress user code for the active challenge to challengeWork.
-function persistChallengeWork(state) {
+//
+// Only the slot for `mode` (the editor the student is actually looking
+// at) is written; the other modes' previously-saved work is carried
+// through untouched. That matters because a challenge authored for one
+// mode can still be attempted in another (`allowModeChange`) — keying
+// this off the challenge's own `mode` used to silently discard, say,
+// the Python a student wrote inside a Blocks challenge.
+function persistChallengeWork(state, mode = state.appMode) {
   if (!state.currentChallengeId) return state;
   const cid = state.currentChallengeId;
   const ch = state.challenges.find(c => c.id === cid);
   if (!ch) return state;
-  const codeSnap = { fsm: null, blocks: null, python: '' };
-  if (ch.mode === 'fsm')    codeSnap.fsm    = state.fsm;
-  if (ch.mode === 'blocks') codeSnap.blocks = state.blocks.blocklyState;
-  if (ch.mode === 'python') codeSnap.python = state.python.code;
+  const prev = state.challengeWork[cid];
+  const codeSnap = { fsm: null, blocks: null, python: '', ...(prev ?? {}) };
+  if (mode === 'fsm')    codeSnap.fsm    = state.fsm;
+  if (mode === 'blocks') codeSnap.blocks = state.blocks.blocklyState;
+  if (mode === 'python') codeSnap.python = state.python.code;
   return {
     ...state,
     challengeWork: { ...state.challengeWork, [cid]: codeSnap },
@@ -418,27 +436,49 @@ function seedStarterForMode(state, mode) {
     if (!starter) return state;
     return { ...state, blocks: { ...state.blocks, blocklyState: starter } };
   }
+  if (mode === 'fsm') {
+    // "Empty" = the single default state with no transitions, i.e. what
+    // createFSM() hands back.
+    const cur = state.fsm;
+    const isEmpty = !cur
+      || ((cur.transitions?.length ?? 0) === 0 && (cur.states?.length ?? 0) <= 1);
+    if (!isEmpty) return state;
+    const starter = ch.starter?.fsm ?? null;
+    if (!starter) return state;
+    return { ...state, fsm: starter };
+  }
   return state;
 }
 
 // Load a challenge's world + (user's work || starter) into the active state.
-function loadChallenge(state, challenge) {
+//
+// `preferredMode` implements sticky mode selection: if the student was
+// coding in Python (or Blocks, or FSM) on the previous challenge and the
+// next one lets them use that mode too, they stay there. Otherwise we
+// fall back to the mode the challenge was authored for.
+function loadChallenge(state, challenge, preferredMode = null) {
   const userWork = state.challengeWork[challenge.id];
-  let fsm = state.fsm;
-  let blocksState = null;
-  let pythonCode = '';
-  if (challenge.mode === 'fsm') {
-    fsm = userWork?.fsm ?? challenge.starter.fsm ?? createFSM();
-  } else if (challenge.mode === 'blocks') {
-    blocksState = userWork?.blocks ?? challenge.starter.blocks ?? null;
-  } else if (challenge.mode === 'python') {
-    pythonCode = userWork?.python ?? challenge.starter.python ?? '';
-  }
+  const mode = (preferredMode && studentModesFor(challenge).includes(preferredMode))
+    ? preferredMode
+    : challenge.mode;
+  // Restore saved work for EVERY mode, not just the one we're landing in
+  // — the student may have attempted this challenge in more than one.
+  // Where there's no saved work, seed the mode we're landing in from the
+  // challenge's starter; the others are filled by seedStarterForMode if
+  // and when the student switches to them.
+  const savedPython = userWork?.python;
+  const fsm = userWork?.fsm
+    ?? (mode === 'fsm' ? (challenge.starter.fsm ?? createFSM()) : createFSM());
+  const blocksState = userWork?.blocks
+    ?? (mode === 'blocks' ? (challenge.starter.blocks ?? null) : null);
+  const pythonCode = (savedPython != null && savedPython !== '')
+    ? savedPython
+    : (mode === 'python' ? (challenge.starter.python ?? '') : '');
   const initWorld = cloneWorld(challenge.initialWorld);
   initWorld.fixedEdges = !!challenge.fixedWorldEdges;
   return withSensors({
     ...state,
-    appMode: challenge.mode,
+    appMode: mode,
     fsm,
     blocks: { ...state.blocks, blocklyState: blocksState, currentBlockId: null, errorBlockId: null },
     python: { ...state.python, code: pythonCode, currentLine: null, errorLine: null },
@@ -798,6 +838,16 @@ function innerReducer(state, action) {
         const persisted = persistEditingChallenge(state);
         return { ...persisted, appMode: action.mode, challengeResult: null };
       }
+      // Inside a challenge, bank the OUTGOING mode's code into
+      // challengeWork before switching, so flipping Blocks → Python →
+      // Blocks (or leaving afterwards) never loses either side. Skip
+      // while a read-only solution is on screen or in the teacher's
+      // scratchpad — that code isn't the student's work.
+      const banked = (state.currentChallengeId
+                      && !state.sim.showingSolution
+                      && !state.scratchpadChallenge)
+        ? persistChallengeWork(state, state.appMode)
+        : state;
       // If a previous Python run is still half-running (paused, finished,
       // mid-error), reset the sim cleanly so the new mode lands in 'edit'.
       // We restore the snapshotted world if we have one. Switching mode
@@ -814,7 +864,7 @@ function innerReducer(state, action) {
       // scaffolded challenge ("fill in the function body") would open
       // blank in the other mode. Only ever fills an EMPTY editor, so
       // work in progress is never overwritten.
-      const seeded = seedStarterForMode(state, action.mode);
+      const seeded = seedStarterForMode(banked, action.mode);
       if (!needsReset) return { ...seeded, appMode: action.mode };
       const restored = state.sim.savedWorld ?? state.world;
       return {
@@ -823,7 +873,7 @@ function innerReducer(state, action) {
         world: restored,
         sensors: computeSensors(restored),
         sim: {
-          ...state.sim,
+          ...seeded.sim,
           mode: 'edit',
           currentStateId: null,
           lastTransitionId: null,
@@ -833,7 +883,7 @@ function innerReducer(state, action) {
           error: null,
           showingSolution: false,
         },
-        runner: { ...state.runner, status: 'ready', awaitingInput: false, inputPrompt: '' },
+        runner: { ...seeded.runner, status: 'ready', awaitingInput: false, inputPrompt: '' },
         blocks: { ...seeded.blocks, currentBlockId: null, errorBlockId: null },
         python: { ...seeded.python, currentLine: null, errorLine: null },
       };
@@ -1504,7 +1554,9 @@ function innerReducer(state, action) {
         },
         runner: { ...persistedWork.runner, status: 'idle', awaitingInput: false, inputPrompt: '' },
       };
-      return loadChallenge(next, ch);
+      // Sticky mode: carry the mode the student is currently coding in
+      // over to the new challenge when it permits that mode.
+      return loadChallenge(next, ch, state.appMode);
     }
 
     case 'CH_EXIT_PLAY': {
@@ -1573,7 +1625,7 @@ function innerReducer(state, action) {
         },
         runner: { ...state.runner, status: 'idle', awaitingInput: false, inputPrompt: '' },
       };
-      return loadChallenge(next, ch);
+      return loadChallenge(next, ch, state.appMode);
     }
 
     case 'CH_CHECK_RESULT': {
@@ -1752,7 +1804,7 @@ function innerReducer(state, action) {
       // state reflects the (possibly just-restored) work for its mode.
       if (next.currentChallengeId && !next.challengeEditor) {
         const ch = next.challenges.find(c => c.id === next.currentChallengeId);
-        if (ch) next = loadChallenge(next, ch);
+        if (ch) next = loadChallenge(next, ch, state.appMode);
       }
       return next;
     }
@@ -1769,7 +1821,7 @@ function innerReducer(state, action) {
       };
       if (next.currentChallengeId && !next.challengeEditor) {
         const ch = next.challenges.find(c => c.id === next.currentChallengeId);
-        if (ch) next = loadChallenge(next, ch);
+        if (ch) next = loadChallenge(next, ch, state.appMode);
       }
       return next;
     }

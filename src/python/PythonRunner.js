@@ -48,6 +48,12 @@ export class PythonRunner {
     this.lineToBlockId = [];
     this.pendingStepTimer = null;
     this.running = false;
+    // True between an `input` message and the answer being posted back.
+    // While parked on input() the worker is blocked inside a synchronous
+    // XHR and cannot process any further postMessage — including the next
+    // run's `debug` command — so a worker in this state must be binned
+    // rather than reused.
+    this.awaitingInput = false;
     // Synchronous pause flag — driven by start/pause/resume/step. Avoids
     // races with React state since handleBreakpoint can fire on a microtask
     // before the next useEffect commits.
@@ -117,6 +123,7 @@ export class PythonRunner {
     this.workerReadyResolve = null;
     this.workerReadyReject = null;
     this.running = false;
+    this.awaitingInput = false;
     if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({ cmd: 'ps-reset' });
     }
@@ -128,6 +135,12 @@ export class PythonRunner {
   // ── Public API ────────────────────────────────────────────────────────────
 
   async start({ code, lineToBlockId, stepped = true }) {
+    // A previous run that never reached 'debug-finished' (the user walked
+    // away mid-step, or left it parked on an input() prompt) has left the
+    // worker blocked inside a synchronous XHR: it will never see this run's
+    // `debug` message and the Run button would appear to hang. Bin that
+    // worker and start this run on a fresh one.
+    if (this.running || this.awaitingInput) this.destroyWorker();
     this.lineToBlockId = lineToBlockId || [];
     this.userPaused = false;
     this._stdoutBuffer = '';
@@ -171,6 +184,29 @@ export class PythonRunner {
     this.continueStep(true);
   }
 
+  /**
+   * Abandon whatever run is in flight because the user navigated away
+   * (another challenge, the challenge editor, out of the book, or a
+   * programming-mode switch). Unlike reset() this doesn't touch the
+   * simulation state — the caller's navigation has already rebuilt it —
+   * it only guarantees the next Run starts on a healthy worker.
+   */
+  abandonRun() {
+    if (!this.running && !this.awaitingInput) {
+      // Nothing in flight; just make sure no stale step timer fires into
+      // the newly-loaded challenge.
+      if (this.pendingStepTimer) { clearTimeout(this.pendingStepTimer); this.pendingStepTimer = null; }
+      return;
+    }
+    this._stdoutBuffer = '';
+    this.world = null;
+    this.destroyWorker();
+    // Re-warm in the background so the next Run in a Python-backed mode
+    // isn't waiting on a cold pyodide load.
+    const mode = this.getMode?.();
+    if (mode === 'blocks' || mode === 'python') this.prewarm();
+  }
+
   reset() {
     this._stdoutBuffer = '';
     this.world = null;
@@ -184,6 +220,7 @@ export class PythonRunner {
   /** User typed an answer to a Python input() prompt and pressed Enter. */
   respondInput(text, prompt = '') {
     if (!navigator.serviceWorker?.controller) return;
+    this.awaitingInput = false;
     // Echo prompt + answer as one combined output line so it reads naturally
     // (`Enter name: Jack`) instead of as two separate lines.
     this.dispatch({ type: 'RUN_APPEND_OUTPUT', line: `${prompt}${text}` });
@@ -249,6 +286,7 @@ export class PythonRunner {
         // with the input field, and dispatch `hi? <answer>` as one line.
         const fullPrompt = this._stdoutBuffer + String(d.prompt ?? '');
         this._stdoutBuffer = '';
+        this.awaitingInput = true;
         this.dispatch({ type: 'RUN_AWAIT_INPUT', prompt: fullPrompt });
         break;
       }
@@ -344,6 +382,7 @@ export class PythonRunner {
 
   handleFinished({ reason, errorLine }) {
     this.running = false;
+    this.awaitingInput = false;
     this.world = null;
     // Flush any partial line still sitting in the buffer (e.g. `print(x, end="")`).
     this.flushStdout(true);
